@@ -87,6 +87,48 @@
 
         /* has-[:checked] for radio buttons */
         .has-[:checked]:bg-\[\#f1edec\] { background-color: #f1edec; }
+
+        /* ==========================================
+           RESPONSIVE MOBILE OVERRIDES
+           ========================================== */
+        @media (max-width: 768px) {
+            /* Sidebar Admin Mobile */
+            #admin-view aside {
+                width: 100% !important;
+                position: relative !important;
+                height: auto !important;
+                border-right: none !important;
+                border-bottom: 1px solid #d4c4b730;
+            }
+            #admin-view .lg\:ml-64 {
+                margin-left: 0 !important;
+            }
+            #admin-view > .flex {
+                flex-direction: column !important;
+            }
+
+            /* Stats Cards Grid */
+            #adm-clients .grid-cols-3,
+            #adm-clients .grid-cols-1 {
+                grid-template-columns: 1fr !important;
+                gap: 1rem !important;
+            }
+
+            /* Tables Scroll */
+            .overflow-x-auto {
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 1rem;
+            }
+            table {
+                min-width: 600px;
+            }
+
+            /* Main Padding Mobile */
+            main {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-background text-on-surface antialiased">

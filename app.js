@@ -229,6 +229,8 @@ let cart = [];
 let selectedDate = null;
 let selectedTime = null;
 let selectedPaymentMethod = null;
+let currentAgendaMonth = new Date();
+let agendaView = 'month'; // 'month', 'week', 'day'
 let currentCalendarMonth = new Date();
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
@@ -311,10 +313,18 @@ function handleLoginStep1() {
     });
 }
 
-function showLoginStep1() {
+function showLoginStep1(email) {
     document.getElementById('login-form-step1').classList.remove('hidden');
     document.getElementById('login-form-step2').classList.add('hidden');
-    document.getElementById('input-login-email').value = '';
+    
+    if (email) {
+        document.getElementById('input-login-email').value = email;
+    }
+    
+    // Verifica se o usuário já existe para definir o texto do botão
+    const existingUser = db.users.find(u => u.email === email);
+    const btnText = existingUser && existingUser.name ? 'Entrar' : 'Cadastrar';
+    document.getElementById('btn-login-step1').textContent = btnText;
 }
 
 function showLoginStep2() {
@@ -374,9 +384,15 @@ function goToHome() {
         showPage('page-login');
         return;
     }
+    cart = [];
+    selectedDate = null;
+    selectedTime = null;
+    selectedPaymentMethod = null;
+    hideAllPages();
+    document.getElementById('page-home').classList.add('active');
     renderServices();
     updateCartFab();
-    showPage('page-home');
+    window.scrollTo(0, 0);
 }
 
 function goBackFromPayment() {
@@ -396,7 +412,7 @@ function updateManuProfilePhoto() {
     const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
     
     // Atualiza todas as fotos de perfil
-    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo'];
+    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic'];
     pics.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.src = src;
@@ -481,11 +497,33 @@ function proceedToBooking() {
         return;
     }
 
+    // Tenta restaurar sessão do localStorage antes de verificar
     if (!db.currentUser) {
+        const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
+        if (savedUserId) {
+            // Força recarregar dados do Supabase para verificar sessão
+            loadAllData().then(() => {
+                const user = db.users.find(u => u.id === savedUserId);
+                if (user) {
+                    db.currentUser = user;
+                    db.isAdmin = user.email === ADMIN_EMAIL;
+                    proceedToBookingActual();
+                } else {
+                    showPage('page-login');
+                }
+            }).catch(() => {
+                showPage('page-login');
+            });
+            return;
+        }
         showPage('page-login');
         return;
     }
 
+    proceedToBookingActual();
+}
+
+function proceedToBookingActual() {
     const alertContainer = document.getElementById('alert-blocked-container');
     const mainContent = document.querySelector('#page-booking main');
     const bottomBtn = document.getElementById('btn-continue-booking');
@@ -1108,6 +1146,137 @@ function renderAdminSchedule() {
             list.appendChild(li);
         });
     }
+
+    // Renderiza o calendário da agenda
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function renderAgendaCalendar() {
+    const grid = document.getElementById('agenda-calendar-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const displayDate = currentAgendaMonth;
+    const year = displayDate.getFullYear();
+    const month = displayDate.getMonth();
+
+    // Preenche select de ano
+    const yearSelect = document.getElementById('agenda-year-select');
+    if (yearSelect) {
+        yearSelect.innerHTML = '';
+        for (let y = year - 2; y <= year + 2; y++) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            if (y === year) opt.selected = true;
+            yearSelect.appendChild(opt);
+        }
+    }
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Pega agendamentos do mês
+    const monthAppointments = getAppointmentsForMonth(year, month);
+
+    // Dias vazios antes do primeiro dia
+    for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+        grid.appendChild(empty);
+    }
+
+    // Dias do mês
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(year, month, day);
+        currentDate.setHours(0, 0, 0, 0);
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dayAppointments = monthAppointments.filter(a => a.appointment_date === dateStr);
+        const isToday = currentDate.getTime() === today.getTime();
+        const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
+        const isPast = currentDate < today;
+
+        const cell = document.createElement('div');
+        cell.className = `h-24 border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'} ${isBlocked ? 'opacity-50' : ''} ${isPast ? 'opacity-40' : ''}`;
+        
+        let appointmentsHtml = '';
+        dayAppointments.slice(0, 2).forEach(app => {
+            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${app.appointment_time} - ${app.services_names?.split(',')[0] || 'Serviço'}</div>`;
+        });
+        if (dayAppointments.length > 2) {
+            appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
+        }
+
+        cell.innerHTML = `
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-xs font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${day}</span>
+                ${isBlocked ? '<span class="text-[8px] text-red-400">Bloqueado</span>' : ''}
+            </div>
+            <div class="space-y-1">${appointmentsHtml}</div>
+        `;
+
+        grid.appendChild(cell);
+    }
+
+    // Preenche dias vazios após o último dia
+    const totalCells = startDayOfWeek + daysInMonth;
+    const remainingCells = 7 - (totalCells % 7);
+    if (remainingCells < 7) {
+        for (let i = 0; i < remainingCells; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+            grid.appendChild(empty);
+        }
+    }
+}
+
+function getAppointmentsForMonth(year, month) {
+    // Filtra agendamentos do mês - implementação simples
+    // Em produção, isso viria do Supabase
+    return [];
+}
+
+function updateAgendaMonthLabel() {
+    const label = document.getElementById('agenda-month-label');
+    if (!label) return;
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    label.textContent = `${monthNames[currentAgendaMonth.getMonth()]}, ${currentAgendaMonth.getFullYear()}`;
+}
+
+function prevAgendaMonth() {
+    currentAgendaMonth = new Date(currentAgendaMonth.getFullYear(), currentAgendaMonth.getMonth() - 1, 1);
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function nextAgendaMonth() {
+    currentAgendaMonth = new Date(currentAgendaMonth.getFullYear(), currentAgendaMonth.getMonth() + 1, 1);
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function changeAgendaYear(year) {
+    currentAgendaMonth = new Date(parseInt(year), currentAgendaMonth.getMonth(), 1);
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function setAgendaView(view) {
+    agendaView = view;
+    document.getElementById('btn-view-month').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'month' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+    document.getElementById('btn-view-week').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'week' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+    document.getElementById('btn-view-day').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'day' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+}
+
+function showNextAppointmentDetails() {
+    showToast('Funcionalidade em desenvolvimento.');
 }
 
 function addBlockedDate() {

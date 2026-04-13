@@ -4,7 +4,6 @@
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MjI3MTYsImV4cCI6MjA2NTE5ODcxNn0.P+FdDIyhvAA/UeiWIltGc9SDg5Rd92vXTMGT1+Vs3bWpdJczAUGW9vmEyjbCF2neYieNRH3ZUAMEliw1zzjdYQ==';
 
-let supabase = null;
 let db = {
     users: [],
     services: [],
@@ -17,7 +16,7 @@ let isDbLoaded = false;
 
 async function initSupabase() {
     try {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         await loadAllData();
         isDbLoaded = true;
         console.log('Supabase conectado!');
@@ -30,10 +29,10 @@ async function initSupabase() {
 async function loadAllData() {
     try {
         const [usersData, servicesData, settingsData, scheduleData] = await Promise.all([
-            supabase.from('users').select('*'),
-            supabase.from('services').select('*'),
-            supabase.from('settings').select('*'),
-            supabase.from('schedule_config').select('*').limit(1)
+            window.supabase.from('users').select('*'),
+            window.supabase.from('services').select('*'),
+            window.supabase.from('settings').select('*'),
+            window.supabase.from('schedule_config').select('*').limit(1)
         ]);
 
         db.users = usersData.data || [];
@@ -85,7 +84,7 @@ async function supabaseLogin(email) {
     let user = db.users.find(u => u.email === email);
     
     if (!user) {
-        const { data, error } = await supabase.from('users').insert({
+        const { data, error } = await window.supabase.from('users').insert({
             name: '',
             email: email,
             type: 'Novo',
@@ -105,7 +104,7 @@ async function supabaseLogin(email) {
 }
 
 async function supabaseUpdateUser(userId, updates) {
-    const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select().single();
+    const { data, error } = await window.supabase.from('users').update(updates).eq('id', userId).select().single();
     if (error) throw error;
     
     const index = db.users.findIndex(u => u.id === userId);
@@ -119,7 +118,7 @@ async function supabaseUpdateUser(userId, updates) {
 }
 
 async function supabaseCreateAppointment(appointmentData) {
-    const { data, error } = await supabase.from('appointments').insert({
+    const { data, error } = await window.supabase.from('appointments').insert({
         user_id: db.currentUser.id,
         services_names: appointmentData.services,
         price: appointmentData.price,
@@ -136,7 +135,7 @@ async function supabaseCreateAppointment(appointmentData) {
 }
 
 async function supabaseUpdateService(serviceId, updates) {
-    const { data, error } = await supabase.from('services').update(updates).eq('id', serviceId).select().single();
+    const { data, error } = await window.supabase.from('services').update(updates).eq('id', serviceId).select().single();
     if (error) throw error;
     
     const index = db.services.findIndex(s => s.id === serviceId);
@@ -146,7 +145,7 @@ async function supabaseUpdateService(serviceId, updates) {
 }
 
 async function supabaseCreateService(serviceData) {
-    const { data, error } = await supabase.from('services').insert({
+    const { data, error } = await window.supabase.from('services').insert({
         name: serviceData.name,
         description: serviceData.desc,
         price: serviceData.price,
@@ -160,14 +159,14 @@ async function supabaseCreateService(serviceData) {
 }
 
 async function supabaseDeleteService(serviceId) {
-    const { error } = await supabase.from('services').update({ is_active: false }).eq('id', serviceId);
+    const { error } = await window.supabase.from('services').update({ is_active: false }).eq('id', serviceId);
     if (error) throw error;
     
     db.services = db.services.filter(s => s.id !== serviceId);
 }
 
 async function supabaseSaveSettings(key, value) {
-    const { data, error } = await supabase.from('settings').upsert({
+    const { data, error } = await window.supabase.from('settings').upsert({
         setting_key: key,
         setting_value: value
     }, { onConflict: 'setting_key' }).select().single();
@@ -177,7 +176,7 @@ async function supabaseSaveSettings(key, value) {
 }
 
 async function supabaseSaveScheduleConfig(config) {
-    const { data, error } = await supabase.from('schedule_config').update({
+    const { data, error } = await window.supabase.from('schedule_config').update({
         start_time: config.start,
         end_time: config.end,
         available_days: config.availableDays,
@@ -858,8 +857,8 @@ function showAdminSection(section) {
 // ==========================================
 async function renderAdminDashboard() {
     try {
-        const { data: appointments } = await supabase.from('appointments').select('*');
-        const { data: users } = await supabase.from('users').select('*');
+        const { data: appointments } = await window.supabase.from('appointments').select('*');
+        const { data: users } = await window.supabase.from('users').select('*');
 
         const totalAppts = appointments?.length || 0;
         const totalUsers = users?.length || 0;
@@ -882,13 +881,13 @@ async function renderAdminClients() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8">Carregando...</td></tr>';
 
     try {
-        const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        const { data, error } = await window.supabase.from('users').select('*').order('created_at', { ascending: false });
         if (error) throw error;
 
         tbody.innerHTML = '';
 
         for (const u of (data || [])) {
-            const { data: appointments } = await supabase.from('appointments').select('*').eq('user_id', u.id);
+            const { data: appointments } = await window.supabase.from('appointments').select('*').eq('user_id', u.id);
             const lastApp = appointments?.sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))[0];
 
             const statusClass = u.status === 'pendente' ? 'text-error' : 'text-emerald-600';

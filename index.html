@@ -46,8 +46,8 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fdf8f8; color: #1c1b1b; }
         h1, h2, h3 { font-family: 'Manrope', sans-serif; }
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-        .page { display: none; }
-        .page.active { display: block; }
+        .page { display: none !important; }
+        .page.active { display: flex !important; }
         .hidden { display: none !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -81,7 +81,6 @@
             inset: 0;
             background: rgba(0,0,0,0.5);
             z-index: 100;
-            display: flex;
             align-items: center;
             justify-content: center;
         }
@@ -175,8 +174,8 @@
         </section>
 
         <!-- PAGE LOGIN -->
-        <section id="page-login" class="page active min-h-screen flex flex-col">
-            <div class="flex-1 flex flex-col justify-center px-6 py-12">
+        <section id="page-login" class="page active min-h-screen flex flex-col pt-20 pb-12">
+            <div class="flex-1 flex flex-col justify-center px-6 py-8">
                 <div class="text-center mb-8">
                     <img id="login-profile-pic" src="https://via.placeholder.com/150?text=Manu+Sarti" alt="Manu Sarti" class="w-24 h-24 rounded-full object-cover mx-auto shadow-lg">
                     <h2 class="font-headline font-extrabold text-3xl text-[#7f5353] mt-6 tracking-tight">Espaço das Patroas</h2>
@@ -215,7 +214,7 @@
         </section>
 
         <!-- PAGE: BOOKING -->
-        <section id="page-booking" class="page min-h-screen pb-24">
+        <section id="page-booking" class="page min-h-screen pb-32">
             <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
                 <div class="flex items-center gap-4">
                     <span class="material-symbols-outlined text-[#7f5353] cursor-pointer active:scale-95" onclick="goToHome()">arrow_back</span>
@@ -265,7 +264,7 @@
         </section>
 
         <!-- PAGE: PAYMENT -->
-        <section id="page-payment" class="page min-h-screen pb-24">
+        <section id="page-payment" class="page min-h-screen pb-32">
             <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
                 <div class="flex items-center gap-4">
                     <span class="material-symbols-outlined text-[#7f5353] cursor-pointer active:scale-95" onclick="goBackFromPayment()">arrow_back</span>
@@ -384,7 +383,7 @@
         </section>
 
         <!-- PAGE: SUCCESS -->
-        <section id="page-success" class="page min-h-screen flex flex-col justify-center items-center px-6 text-center">
+        <section id="page-success" class="page min-h-screen flex flex-col items-center px-6 text-center pt-20 pb-12">
             <div class="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
                 <span class="material-symbols-outlined text-5xl text-emerald-500" style="font-variation-settings: 'FILL' 1;">check_circle</span>
             </div>
@@ -423,9 +422,9 @@
     </div>
 
     <!-- ==================== ADMIN VIEW ==================== -->
-    <div id="admin-view" class="hidden">
-        <!-- SideNavBar -->
-        <aside class="fixed left-0 top-0 h-full flex flex-col py-8 w-64 bg-[#fdf8f8] z-50">
+    <div id="admin-view" class="hidden lg:flex min-h-screen">
+        <!-- SideNavBar - Desktop (always visible on desktop) -->
+        <aside class="fixed left-0 top-0 h-screen flex flex-col py-8 w-64 bg-[#fdf8f8] z-50 border-r border-[#d4c4b7]/10">
             <div class="px-8 mb-12">
                 <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
                 <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-1">Administração</p>
@@ -449,29 +448,83 @@
                 </a>
             </nav>
             <div class="px-6 mt-auto">
-                <button onclick="switchToClientView()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                <button onclick="confirmLogout()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined text-sm">person</span>
                     Sair do Admin
                 </button>
             </div>
         </aside>
 
-        <!-- TopNavBar -->
-        <header class="fixed top-0 right-0 left-64 z-40 flex justify-between items-center px-12 w-full h-16 bg-[#fdf8f8]/80 backdrop-blur-xl border-b border-[#d4c4b7]/15">
-            <h2 id="admin-page-title" class="font-headline text-2xl font-extrabold text-primary">Clientes</h2>
-            <div class="flex items-center gap-6">
-                <div class="flex items-center gap-3 pl-6 border-l border-[#d4c4b7]/30">
-                    <div class="text-right">
-                        <p class="text-[10px] font-bold tracking-widest uppercase">Admin</p>
-                        <p class="text-xs text-stone-500 font-medium">Manu Sarti</p>
-                    </div>
-                    <img id="admin-avatar" src="https://via.placeholder.com/150?text=Manu" alt="Avatar" class="w-10 h-10 rounded-full object-cover">
-                </div>
+        <!-- Mobile Header -->
+        <header class="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 w-full h-16 bg-[#fdf8f8]/80 backdrop-blur-md border-b border-[#d4c4b7]/15">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleAdminMenu()" class="p-2 text-[#7f5353]">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <h1 class="text-lg font-bold tracking-tighter text-[#7f5353]">Admin</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <img id="admin-avatar" src="https://via.placeholder.com/150?text=Manu" alt="Avatar" class="w-8 h-8 rounded-full object-cover">
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="ml-64 pt-24 pb-12 px-12">
+        <!-- Mobile Menu Overlay -->
+        <div id="admin-mobile-menu" class="lg:hidden hidden fixed inset-0 z-50 bg-black/50" onclick="toggleAdminMenu()">
+            <div class="bg-[#fdf8f8] w-72 h-full p-6" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
+                        <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-1">Administração</p>
+                    </div>
+                    <button onclick="toggleAdminMenu()" class="text-stone-400">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <nav class="space-y-2">
+                    <a onclick="showAdminSection('clients'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">group</span>
+                        <span>Clientes</span>
+                    </a>
+                    <a onclick="showAdminSection('schedule'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                        <span>Agenda</span>
+                    </a>
+                    <a onclick="showAdminSection('portfolio'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">content_cut</span>
+                        <span>Serviços</span>
+                    </a>
+                    <a onclick="showAdminSection('settings'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">settings</span>
+                        <span>Configurações</span>
+                    </a>
+                </nav>
+                <div class="mt-auto pt-6">
+                    <button onclick="switchToClientView()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-sm">person</span>
+                        Sair do Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side container (content + topbar) -->
+        <div class="flex-1 flex flex-col lg:ml-64">
+            <!-- TopNavBar - Desktop -->
+            <header class="hidden lg:flex fixed top-0 right-0 left-64 z-40 justify-between items-center px-12 w-full h-16 bg-[#fdf8f8]/80 backdrop-blur-xl border-b border-[#d4c4b7]/15">
+                <h2 id="admin-page-title" class="font-headline text-2xl font-extrabold text-primary">Clientes</h2>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-3 pl-6 border-l border-[#d4c4b7]/30">
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold tracking-widest uppercase">Admin</p>
+                            <p class="text-xs text-stone-500 font-medium">Manu Sarti</p>
+                        </div>
+                        <img id="admin-avatar" src="https://via.placeholder.com/150?text=Manu" alt="Avatar" class="w-10 h-10 rounded-full object-cover">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="flex-1 pt-20 lg:pt-24 pb-12 px-4 lg:px-12 w-full overflow-x-hidden">
 
             <!-- SECTION: CLIENTS -->
             <section id="adm-clients" class="adm-section">
@@ -596,7 +649,7 @@
                     <div class="xl:col-span-2 space-y-6">
                         <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-6">
                             <h3 class="font-headline font-bold text-lg text-[#1c1b1b] mb-4">Horários e funcionamento</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Abertura</label>
                                     <input id="config-start-time" type="time" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="09:00"/>
@@ -604,6 +657,10 @@
                                 <div>
                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Fechamento</label>
                                     <input id="config-end-time" type="time" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="18:00"/>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Intervalo (horas)</label>
+                                    <input id="config-slot-duration" type="number" min="1" max="8" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="3"/>
                                 </div>
                             </div>
                             <button onclick="saveScheduleSettings()" class="mt-4 px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Salvar Configurações</button>
@@ -721,21 +778,6 @@
                 </div>
             </div>
             <button onclick="saveService()" class="w-full mt-6 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition-opacity">Salvar</button>
-        </div>
-    </div>
-
-    <!-- ==================== LOGOUT MODAL ==================== -->
-    <div id="logout-modal" class="modal hidden">
-        <div class="bg-white rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
-            <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <span class="material-symbols-outlined text-3xl text-red-500">logout</span>
-            </div>
-            <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-2">Sair da conta?</h3>
-            <p class="text-stone-500 text-sm mb-6">Você será desconectado e precisará fazer login novamente.</p>
-            <div class="flex gap-3">
-                <button onclick="closeLogoutModal()" class="flex-1 py-3 bg-[#f7f3f2] text-[#1c1b1b] rounded-xl font-bold text-sm hover:bg-[#ebe7e7] transition-colors">Cancelar</button>
-                <button onclick="logout()" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-colors">Sair</button>
-            </div>
         </div>
     </div>
 

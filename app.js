@@ -8,7 +8,8 @@ let db = {
     users: [],
     services: [],
     settings: { profileImg: "" },
-    scheduleConfig: { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
+    appointmentsCache: [],
+    scheduleConfig: { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
     currentUser: null,
     isAdmin: false
 };
@@ -28,17 +29,19 @@ async function initSupabase() {
 
 async function loadAllData() {
     try {
-        const [usersData, servicesData, settingsData, scheduleData] = await Promise.all([
+        const [usersData, servicesData, settingsData, scheduleData, appointmentsData] = await Promise.all([
             window.supabase.from('users').select('*'),
             window.supabase.from('services').select('*'),
             window.supabase.from('settings').select('*'),
-            window.supabase.from('schedule_config').select('*').limit(1)
+            window.supabase.from('schedule_config').select('*').limit(1),
+            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
         ]);
 
         db.users = usersData.data || [];
         db.services = (servicesData.data || []).filter(s => s.is_active === true || s.is_active === 'true');
         db.settings = { profileImg: "" };
-        db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+        db.appointmentsCache = appointmentsData.data || [];
+        db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
         if (settingsData.data && settingsData.data.length > 0) {
             const profileSetting = settingsData.data.find(s => s.setting_key === 'profileImg');
@@ -49,6 +52,7 @@ async function loadAllData() {
             db.scheduleConfig = {
                 start: scheduleData.data[0].start_time || "09:00",
                 end: scheduleData.data[0].end_time || "18:00",
+                slotDuration: scheduleData.data[0].slot_duration || 3,
                 availableDays: scheduleData.data[0].available_days || [1, 2, 3, 4, 5],
                 blockedDates: scheduleData.data[0].blocked_dates || []
             };
@@ -182,6 +186,7 @@ async function supabaseSaveScheduleConfig(config) {
     const { data, error } = await window.supabase.from('schedule_config').update({
         start_time: config.start,
         end_time: config.end,
+        slot_duration: config.slotDuration || 3,
         available_days: config.availableDays,
         blocked_dates: config.blockedDates,
         updated_at: new Date().toISOString()
@@ -251,11 +256,19 @@ function showPage(pageId) {
 }
 
 function switchToAdminView() {
+    hideAllPages();
     document.getElementById('client-view').classList.add('hidden');
     document.getElementById('admin-view').classList.remove('hidden');
     updateManuProfilePhoto();
     renderAdminDashboard();
     showAdminSection('clients');
+}
+
+function toggleAdminMenu() {
+    const menu = document.getElementById('admin-mobile-menu');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
 }
 
 function switchToClientView() {
@@ -680,14 +693,21 @@ function populateTimes() {
 
     const start = parseInt(db.scheduleConfig.start.split(':')[0]);
     const end = parseInt(db.scheduleConfig.end.split(':')[0]);
-    const slotDuration = 3;
+    const slotDuration = db.scheduleConfig.slotDuration || 3;
+
+    // Busca agendamentos do dia para bloquear horários ocupados
+    const dayAppointments = db.appointmentsCache?.filter(a => a.appointment_date === selectedDate) || [];
 
     for (let h = start; h < end; h += slotDuration) {
         const timeStr = `${h.toString().padStart(2, '0')}:00`;
+        const isBooked = dayAppointments.some(a => a.appointment_time === timeStr);
+
         const btn = document.createElement('button');
-        btn.className = "py-3 px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium hover:bg-[#f7f3f2] transition-colors";
-        btn.textContent = timeStr;
-        btn.onclick = () => selectTime(timeStr, btn);
+        btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-colors ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
+        btn.textContent = isBooked ? `${timeStr} (ocupado)` : timeStr;
+        if (!isBooked) {
+            btn.onclick = () => selectTime(timeStr, btn);
+        }
         container.appendChild(btn);
     }
 }
@@ -819,7 +839,7 @@ async function confirmBooking() {
     const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
 
     try {
-        await supabaseCreateAppointment({
+        const newAppointment = await supabaseCreateAppointment({
             services: cart.map(s => s.name),
             price: totalPrice,
             date: selectedDate,
@@ -827,6 +847,9 @@ async function confirmBooking() {
             paymentMethod: selectedPaymentMethod,
             paymentDate: paymentDate
         });
+
+        // Adiciona ao Google Calendar
+        addToGoogleCalendar(newAppointment);
 
         await supabaseUpdateUser(db.currentUser.id, {
             appointments_count: (db.currentUser.appointments_count || 0) + 1,
@@ -843,7 +866,7 @@ async function confirmBooking() {
             paymentMethod: selectedPaymentMethod
         });
         showPage('page-success');
-        showToast('Agendamento realizado!');
+        showToast('Agendamento realizado! Verifique o Google Calendar.');
     } catch (error) {
         console.error('Erro ao confirmar:', error);
         showToast('Erro ao confirmar agendamento.');
@@ -1160,8 +1183,20 @@ async function renderAdminAppointments() {
 
 async function updateAppointmentStatus(appointmentId, newStatus) {
     try {
+        // Busca o agendamento para verificar se é cancelamento
+        const appointment = db.appointmentsCache.find(a => a.id === appointmentId);
+        
         await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
-        showToast('Status atualizado!');
+
+        // Atualiza cache local
+        const idx = db.appointmentsCache.findIndex(a => a.id === appointmentId);
+        if (idx !== -1) db.appointmentsCache[idx].status = newStatus;
+
+        if (newStatus === 'Cancelado' && appointment) {
+            removeFromGoogleCalendar(appointment);
+        } else {
+            showToast('Status atualizado!');
+        }
     } catch (error) {
         showToast('Erro ao atualizar.');
     }
@@ -1182,8 +1217,10 @@ function renderAdminSchedule() {
 
     const startInput = document.getElementById('config-start-time');
     const endInput = document.getElementById('config-end-time');
+    const slotInput = document.getElementById('config-slot-duration');
     if (startInput) startInput.value = db.scheduleConfig.start;
     if (endInput) endInput.value = db.scheduleConfig.end;
+    if (slotInput) slotInput.value = db.scheduleConfig.slotDuration || 3;
 
     const list = document.getElementById('blocked-dates-list');
     if (list) {
@@ -1336,10 +1373,189 @@ function setAgendaView(view) {
     document.getElementById('btn-view-month').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'month' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
     document.getElementById('btn-view-week').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'week' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
     document.getElementById('btn-view-day').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'day' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+    renderAgendaCalendar();
+}
+
+function renderAgendaCalendar() {
+    const grid = document.getElementById('agenda-calendar-grid');
+    if (!grid) return;
+
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const displayDate = currentAgendaMonth;
+    const year = displayDate.getFullYear();
+    const month = displayDate.getMonth();
+
+    // Preenche select de ano
+    const yearSelect = document.getElementById('agenda-year-select');
+    if (yearSelect) {
+        yearSelect.innerHTML = '';
+        for (let y = year - 2; y <= year + 2; y++) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            if (y === year) opt.selected = true;
+            yearSelect.appendChild(opt);
+        }
+    }
+
+    grid.innerHTML = '';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (agendaView === 'month') {
+        // Visualização mensal
+        // Header dos dias da semana
+        dayNames.forEach(day => {
+            const header = document.createElement('div');
+            header.className = 'text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase py-2 bg-[#f7f3f2] border-r border-b border-[#d4c4b7]/10';
+            header.textContent = day;
+            grid.appendChild(header);
+        });
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startDayOfWeek = firstDay.getDay();
+        const monthAppointments = getAppointmentsForMonth(year, month);
+
+        // Dias vazios antes do primeiro dia
+        for (let i = 0; i < startDayOfWeek; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+            grid.appendChild(empty);
+        }
+
+        // Dias do mês
+        for (let day = 1; day <= daysInMonth; day++) {
+            const currentDate = new Date(year, month, day);
+            currentDate.setHours(0, 0, 0, 0);
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const dayAppointments = monthAppointments.filter(a => a.appointment_date === dateStr);
+            const isToday = currentDate.getTime() === today.getTime();
+            const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
+            const isPast = currentDate < today;
+
+            const cell = document.createElement('div');
+            cell.className = `h-24 border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'} ${isBlocked ? 'opacity-50' : ''} ${isPast ? 'opacity-40' : ''}`;
+
+            let appointmentsHtml = '';
+            dayAppointments.slice(0, 2).forEach(app => {
+                appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${app.appointment_time} - ${app.services_names?.split(',')[0] || 'Serviço'}</div>`;
+            });
+            if (dayAppointments.length > 2) {
+                appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
+            }
+
+            cell.innerHTML = `
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${day}</span>
+                    ${isBlocked ? '<span class="text-[8px] text-red-400">Bloqueado</span>' : ''}
+                </div>
+                <div class="space-y-1">${appointmentsHtml}</div>
+            `;
+
+            grid.appendChild(cell);
+        }
+
+        // Preenche dias vazios após o último dia
+        const totalCells = startDayOfWeek + daysInMonth;
+        const remainingCells = 7 - (totalCells % 7);
+        if (remainingCells < 7 && remainingCells > 0) {
+            for (let i = 0; i < remainingCells; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+                grid.appendChild(empty);
+            }
+        }
+
+    } else if (agendaView === 'week') {
+        // Visualização semanal
+        const startOfWeek = new Date(currentAgendaMonth);
+        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+        const weekAppointments = allAppointmentsCache.filter(app => {
+            const appDate = new Date(app.appointment_date);
+            return appDate >= startOfWeek && appDate < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000);
+        });
+
+        for (let i = 0; i < 7; i++) {
+            const dayDate = new Date(startOfWeek.getTime() + i * 24 * 60 * 60 * 1000);
+            dayDate.setHours(0, 0, 0, 0);
+            const dateStr = dayDate.toISOString().split('T')[0];
+            const dayAppointments = weekAppointments.filter(a => a.appointment_date === dateStr);
+            const isToday = dayDate.getTime() === today.getTime();
+
+            const cell = document.createElement('div');
+            cell.className = `min-h-[200px] border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'}`;
+
+            let appointmentsHtml = '';
+            dayAppointments.forEach(app => {
+                appointmentsHtml += `<div class="text-xs bg-primary/10 text-primary rounded px-2 py-1 mb-2">
+                    <span class="font-bold">${app.appointment_time}</span>
+                    <span class="block">${app.services_names}</span>
+                </div>`;
+            });
+
+            cell.innerHTML = `
+                <div class="text-center mb-2 pb-2 border-b border-[#d4c4b7]/10">
+                    <span class="text-[10px] font-bold text-stone-400 uppercase">${dayNames[i]}</span>
+                    <span class="block text-lg font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${dayDate.getDate()}</span>
+                </div>
+                <div class="space-y-1">${appointmentsHtml || '<p class="text-xs text-stone-300">Sem agendamentos</p>'}</div>
+            `;
+
+            grid.appendChild(cell);
+        }
+
+    } else if (agendaView === 'day') {
+        // Visualização diária - mostra os horários do dia selecionado
+        const selectedDate = new Date(currentAgendaMonth);
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dayAppointments = allAppointmentsCache.filter(a => a.appointment_date === dateStr);
+        const dayOfWeek = selectedDate.getDay();
+
+        // Célula única para o dia
+        const cell = document.createElement('div');
+        cell.className = 'col-span-7 bg-white p-4 min-h-[400px]';
+        cell.innerHTML = `
+            <div class="text-center mb-6 pb-4 border-b border-[#d4c4b7]/10">
+                <span class="text-[10px] font-bold text-stone-400 uppercase">${dayNames[dayOfWeek]}</span>
+                <span class="block text-4xl font-bold text-primary">${selectedDate.getDate()}</span>
+                <span class="text-sm text-stone-400">${monthNames[month]} ${year}</span>
+            </div>
+            <div class="space-y-2">
+                ${dayAppointments.length > 0 ? dayAppointments.map(app => `
+                    <div class="flex items-center gap-4 p-3 bg-primary/5 rounded-xl border-l-4 border-primary">
+                        <span class="font-bold text-primary">${app.appointment_time}</span>
+                        <div>
+                            <p class="font-bold text-sm">${app.services_names}</p>
+                            <p class="text-xs text-stone-500">${app.payment_status || 'Pendente'}</p>
+                        </div>
+                    </div>
+                `).join('') : '<p class="text-center text-stone-300 py-8">Sem agendamentos neste dia</p>'}
+            </div>
+        `;
+        grid.appendChild(cell);
+    }
+
+    // Atualiza label do mês
+    const label = document.getElementById('agenda-month-label');
+    if (label) {
+        label.textContent = `${monthNames[currentAgendaMonth.getMonth()]}, ${currentAgendaMonth.getFullYear()}`;
+    }
 }
 
 function showNextAppointmentDetails() {
-    showToast('Funcionalidade em desenvolvimento.');
+    const next = allAppointmentsCache
+        .filter(a => a.appointment_date >= new Date().toISOString().split('T')[0] && a.status === 'Confirmado')
+        .sort((a, b) => new Date(a.appointment_date + ' ' + a.appointment_time) - new Date(b.appointment_date + ' ' + b.appointment_time))[0];
+    
+    if (next) {
+        showToast(`Próximo: ${next.appointment_time} - ${next.services_names}`);
+    } else {
+        showToast('Nenhum agendamento próximo.');
+    }
 }
 
 function addBlockedDate() {
@@ -1365,9 +1581,11 @@ function removeBlockedDate(date) {
 async function saveScheduleSettings() {
     const startInput = document.getElementById('config-start-time');
     const endInput = document.getElementById('config-end-time');
+    const slotInput = document.getElementById('config-slot-duration');
 
     db.scheduleConfig.start = startInput?.value || "09:00";
     db.scheduleConfig.end = endInput?.value || "18:00";
+    db.scheduleConfig.slotDuration = parseInt(slotInput?.value) || 3;
 
     try {
         await supabaseSaveScheduleConfig(db.scheduleConfig);
@@ -1546,32 +1764,34 @@ function handleProfileImageUpload(input) {
 }
 
 // ==========================================
-// LOGOUT
+// LOGOUT - VIA NATIVE BROWSER CONFIRM
 // ==========================================
-function confirmLogout() {
-    const modal = document.getElementById('logout-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
+window.confirmLogout = function() {
+    const wantsToLogOut = window.confirm("Sair da conta?\n\nVocê será desconectado e precisará fazer login novamente.");
+    if (wantsToLogOut) {
+        executarLogout();
     }
-}
+};
 
-function closeLogoutModal() {
-    const modal = document.getElementById('logout-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-}
-
-function logout() {
+window.executarLogout = function() {
+    // Limpa dados de sessão
     clearSession();
     cart = [];
-    closeLogoutModal();
-    showLoginStep1();
-    showPage('page-login');
-    showToast('Você saiu da conta.');
-}
+
+    // Oculta todas as páginas
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    
+    // Oculta o Admin e exibe o Client View
+    const clientView = document.getElementById('client-view');
+    const adminView = document.getElementById('admin-view');
+    if (clientView) clientView.classList.remove('hidden');
+    if (adminView) adminView.classList.add('hidden');
+
+    // Redireciona para o login
+    if (typeof showLoginStep1 === 'function') showLoginStep1();
+    if (typeof showPage === 'function') showPage('page-login');
+    if (typeof showToast === 'function') showToast('Você saiu da conta com sucesso.');
+};
 
 // ==========================================
 // INITIALIZATION
@@ -1597,6 +1817,31 @@ function sanitizeString(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+// ==========================================
+// GOOGLE CALENDAR INTEGRATION
+// ==========================================
+function generateGoogleCalendarUrl(appointment) {
+    const title = encodeURIComponent(`Espaço das Patroas - ${appointment.services_names}`);
+    const dateStr = appointment.appointment_date.replace(/-/g, '');
+    const startTime = appointment.appointment_time.replace(':', '') + '00';
+    const endHour = parseInt(appointment.appointment_time.split(':')[0]) + 3;
+    const endTime = `${endHour.toString().padStart(2, '0')}${appointment.appointment_time.split(':')[1]}00`;
+    const start = `${dateStr}T${startTime}`;
+    const end = `${dateStr}T${endTime}`;
+    const details = encodeURIComponent(`Cliente: ${appointment.client_name || 'Cliente'}\nServiço: ${appointment.services_names}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || 'Pendente'}`);
+    const location = encodeURIComponent('Espaço das Patroas');
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+}
+
+function addToGoogleCalendar(appointment) {
+    const url = generateGoogleCalendarUrl(appointment);
+    window.open(url, '_blank');
+}
+
+function removeFromGoogleCalendar(appointment) {
+    showToast('Agendamento cancelado. Remova manualmente do Google Calendar se foi adicionado.');
 }
 
 function showToast(message) {

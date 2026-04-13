@@ -2,7 +2,7 @@
 // SUPABASE CONFIGURATION
 // ==========================================
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MjI3MTYsImV4cCI6MjA2NTE5ODcxNn0.P+FdDIyhvAA/UeiWIltGc9SDg5Rd92vXTMGT1+Vs3bWpdJczAUGW9vmEyjbCF2neYieNRH3ZUAMEliw1zzjdYQ==';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NzM2NTUsImV4cCI6MjA5MTU0OTY1NX0.lHX5WB9WCY_pEgXcN4hvve3Pi5xqJgITbESrxiO3Nwk';
 
 let db = {
     users: [],

@@ -1,0 +1,1252 @@
+// ==========================================
+// SUPABASE CONFIGURATION
+// ==========================================
+const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2MjI3MTYsImV4cCI6MjA2NTE5ODcxNn0.P+FdDIyhvAA/UeiWIltGc9SDg5Rd92vXTMGT1+Vs3bWpdJczAUGW9vmEyjbCF2neYieNRH3ZUAMEliw1zzjdYQ==';
+
+let supabase = null;
+let db = {
+    users: [],
+    services: [],
+    settings: { profileImg: "" },
+    scheduleConfig: { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
+    currentUser: null,
+    isAdmin: false
+};
+let isDbLoaded = false;
+
+async function initSupabase() {
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        await loadAllData();
+        isDbLoaded = true;
+        console.log('Supabase conectado!');
+    } catch (error) {
+        console.error('Erro ao conectar com Supabase:', error);
+        showToast('Erro de conexão. Tentando modo offline...');
+    }
+}
+
+async function loadAllData() {
+    try {
+        const [usersData, servicesData, settingsData, scheduleData] = await Promise.all([
+            supabase.from('users').select('*'),
+            supabase.from('services').select('*'),
+            supabase.from('settings').select('*'),
+            supabase.from('schedule_config').select('*').limit(1)
+        ]);
+
+        db.users = usersData.data || [];
+        db.services = (servicesData.data || []).filter(s => s.is_active === true || s.is_active === 'true');
+        db.settings = { profileImg: "" };
+        db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+
+        if (settingsData.data && settingsData.data.length > 0) {
+            const profileSetting = settingsData.data.find(s => s.setting_key === 'profileImg');
+            if (profileSetting && profileSetting.setting_value) db.settings.profileImg = profileSetting.setting_value;
+        }
+
+        if (scheduleData.data && scheduleData.data.length > 0) {
+            db.scheduleConfig = {
+                start: scheduleData.data[0].start_time || "09:00",
+                end: scheduleData.data[0].end_time || "18:00",
+                availableDays: scheduleData.data[0].available_days || [1, 2, 3, 4, 5],
+                blockedDates: scheduleData.data[0].blocked_dates || []
+            };
+        }
+
+        const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
+        if (savedUserId) {
+            db.currentUser = db.users.find(u => u.id === savedUserId);
+            db.isAdmin = db.currentUser?.email === ADMIN_EMAIL;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+    }
+}
+
+function saveSession() {
+    if (db.currentUser) {
+        localStorage.setItem('espacoPatroas_currentUser', db.currentUser.id);
+    }
+}
+
+function clearSession() {
+    localStorage.removeItem('espacoPatroas_currentUser');
+    db.currentUser = null;
+    db.isAdmin = false;
+}
+
+// ==========================================
+// SUPABASE FUNCTIONS
+// ==========================================
+
+async function supabaseLogin(email) {
+    let user = db.users.find(u => u.email === email);
+    
+    if (!user) {
+        const { data, error } = await supabase.from('users').insert({
+            name: '',
+            email: email,
+            type: 'Novo',
+            status: 'ok'
+        }).select().single();
+
+        if (error) throw error;
+        user = data;
+        db.users.push(user);
+    }
+
+    db.currentUser = user;
+    db.isAdmin = user.email === ADMIN_EMAIL;
+    saveSession();
+
+    return user;
+}
+
+async function supabaseUpdateUser(userId, updates) {
+    const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select().single();
+    if (error) throw error;
+    
+    const index = db.users.findIndex(u => u.id === userId);
+    if (index !== -1) db.users[index] = data;
+    
+    if (db.currentUser?.id === userId) {
+        db.currentUser = data;
+    }
+    
+    return data;
+}
+
+async function supabaseCreateAppointment(appointmentData) {
+    const { data, error } = await supabase.from('appointments').insert({
+        user_id: db.currentUser.id,
+        services_names: appointmentData.services,
+        price: appointmentData.price,
+        appointment_date: appointmentData.date,
+        appointment_time: appointmentData.time,
+        payment_method: appointmentData.paymentMethod,
+        payment_status: 'Pendente',
+        payment_date: appointmentData.paymentDate || null,
+        status: 'Confirmado'
+    }).select().single();
+
+    if (error) throw error;
+    return data;
+}
+
+async function supabaseUpdateService(serviceId, updates) {
+    const { data, error } = await supabase.from('services').update(updates).eq('id', serviceId).select().single();
+    if (error) throw error;
+    
+    const index = db.services.findIndex(s => s.id === serviceId);
+    if (index !== -1) db.services[index] = data;
+    
+    return data;
+}
+
+async function supabaseCreateService(serviceData) {
+    const { data, error } = await supabase.from('services').insert({
+        name: serviceData.name,
+        description: serviceData.desc,
+        price: serviceData.price,
+        image_url: serviceData.img || '',
+        is_active: true
+    }).select().single();
+
+    if (error) throw error;
+    db.services.push(data);
+    return data;
+}
+
+async function supabaseDeleteService(serviceId) {
+    const { error } = await supabase.from('services').update({ is_active: false }).eq('id', serviceId);
+    if (error) throw error;
+    
+    db.services = db.services.filter(s => s.id !== serviceId);
+}
+
+async function supabaseSaveSettings(key, value) {
+    const { data, error } = await supabase.from('settings').upsert({
+        setting_key: key,
+        setting_value: value
+    }, { onConflict: 'setting_key' }).select().single();
+
+    if (error) throw error;
+    return data;
+}
+
+async function supabaseSaveScheduleConfig(config) {
+    const { data, error } = await supabase.from('schedule_config').update({
+        start_time: config.start,
+        end_time: config.end,
+        available_days: config.availableDays,
+        blocked_dates: config.blockedDates,
+        updated_at: new Date().toISOString()
+    }).eq('id', '00000000-0000-0000-0000-000000000001').select().single();
+
+    if (error) throw error;
+    return data;
+}
+
+// ==========================================
+// AUTO-LOGIN
+// ==========================================
+function checkAutoLogin() {
+    const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
+    if (savedUserId && isDbLoaded) {
+        const user = db.users.find(u => u.id === savedUserId);
+        if (user) {
+            db.currentUser = user;
+            db.isAdmin = user.email === ADMIN_EMAIL;
+            updateManuProfilePhoto();
+            const userNameEl = document.getElementById('user-name-display');
+            if (userNameEl && user.name) userNameEl.textContent = user.name.split(' ')[0];
+            renderServices();
+            updateCartFab();
+            showPage('page-home');
+            showToast(`Bem-vinda de volta, ${user.name?.split(' ')[0] || ''}!`);
+            return true;
+        }
+    }
+    return false;
+}
+
+// ==========================================
+// VARIABLES
+// ==========================================
+let cart = [];
+let selectedDate = null;
+let selectedTime = null;
+let selectedPaymentMethod = null;
+let currentCalendarMonth = new Date();
+
+const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
+
+// ==========================================
+// NAVIGATION
+// ==========================================
+function hideAllPages() { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); }
+
+function showPage(pageId) {
+    const targetId = pageId.startsWith('page-') ? pageId : 'page-' + pageId;
+    hideAllPages();
+    const el = document.getElementById(targetId);
+    if (el) { el.classList.add('active'); window.scrollTo(0, 0); }
+}
+
+function switchToAdminView() {
+    document.getElementById('client-view').classList.add('hidden');
+    document.getElementById('admin-view').classList.remove('hidden');
+
+    const avatar = document.getElementById('admin-avatar');
+    if (avatar && db.settings.profileImg) {
+        avatar.src = db.settings.profileImg;
+    }
+
+    renderAdminDashboard();
+    showAdminSection('clients');
+}
+
+function switchToClientView() {
+    document.getElementById('admin-view').classList.add('hidden');
+    document.getElementById('client-view').classList.remove('hidden');
+    cart = [];
+    clearSession();
+    showLoginStep1();
+    showPage('page-login');
+}
+
+// ==========================================
+// LOGIN FLOW
+// ==========================================
+
+function handleLoginStep1() {
+    const emailInput = document.getElementById('input-login-email');
+    const email = sanitizeString(emailInput.value.trim()).toLowerCase();
+
+    if (!email) {
+        showToast("Digite seu email.");
+        return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showToast("Digite um email válido.");
+        return;
+    }
+
+    supabaseLogin(email).then(user => {
+        if (user.email === ADMIN_EMAIL) {
+            db.isAdmin = true;
+            saveSession();
+            switchToAdminView();
+            return;
+        }
+
+        db.currentUser = user;
+        db.isAdmin = false;
+        saveSession();
+
+        updateManuProfilePhoto();
+        const userNameEl = document.getElementById('user-name-display');
+        if (userNameEl && user.name) userNameEl.textContent = user.name.split(' ')[0];
+        renderServices();
+        updateCartFab();
+        showPage('page-home');
+        showToast(`Bem-vinda!`);
+    }).catch(error => {
+        console.error('Erro no login:', error);
+        showToast('Erro ao fazer login. Tente novamente.');
+    });
+}
+
+function showLoginStep1() {
+    document.getElementById('login-form-step1').classList.remove('hidden');
+    document.getElementById('login-form-step2').classList.add('hidden');
+    document.getElementById('input-login-email').value = '';
+}
+
+function showLoginStep2() {
+    document.getElementById('login-form-step1').classList.add('hidden');
+    document.getElementById('login-form-step2').classList.remove('hidden');
+    document.getElementById('input-login-name').value = '';
+    document.getElementById('input-login-phone').value = '';
+    document.getElementById('input-login-name').focus();
+}
+
+async function handleLogin() {
+    const nameInput = document.getElementById('input-login-name');
+    const emailInput = document.getElementById('input-login-email');
+    const phoneInput = document.getElementById('input-login-phone');
+
+    const name = sanitizeString(nameInput.value.trim());
+    const email = sanitizeString(emailInput.value.trim()).toLowerCase();
+    const phone = phoneInput.value.replace(/\D/g, '');
+
+    if (!name || !phone) {
+        showToast("Complete seu cadastro.");
+        return;
+    }
+
+    if (phone.length < 10) {
+        showToast("Digite um telefone válido com DDD.");
+        return;
+    }
+
+    try {
+        const user = await supabaseUpdateUser(db.currentUser.id, { name, phone });
+        db.currentUser = user;
+
+        saveSession();
+        updateManuProfilePhoto();
+        const userNameEl = document.getElementById('user-name-display');
+        if (userNameEl) userNameEl.textContent = name.split(' ')[0];
+        renderServices();
+        updateCartFab();
+        showPage('page-home');
+        showToast(`Bem-vinda, ${name.split(' ')[0]}!`);
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('Erro ao salvar dados.');
+    }
+}
+
+function goToLogin() {
+    clearSession();
+    updateManuProfilePhoto();
+    showLoginStep1();
+    showPage('page-login');
+}
+
+function goToHome() {
+    renderServices();
+    updateCartFab();
+    showPage('page-home');
+}
+
+function goBackFromPayment() {
+    showPage('page-booking');
+}
+
+function goToMyAppointments() {
+    renderMyAppointments();
+    showPage('page-my-appointments');
+}
+
+function updateManuProfilePhoto() {
+    const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
+    const mainPic = document.getElementById('main-profile-pic');
+    if (mainPic) mainPic.src = src;
+    const heroPic = document.getElementById('home-profile-pic');
+    if (heroPic) heroPic.src = src;
+    const avatar = document.getElementById('admin-avatar');
+    if (avatar) avatar.src = src;
+}
+
+// ==========================================
+// SERVICES
+// ==========================================
+function renderServices() {
+    const container = document.getElementById('services-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    db.services.forEach(s => {
+        const isInCart = cart.some(item => item.id === s.id);
+        const imgSrc = s.image_url || s.img || '';
+        const displayImg = imgSrc || 'https://via.placeholder.com/400x300?text=Serviço';
+        
+        const card = document.createElement('div');
+        card.className = 'group bg-white rounded-xl overflow-hidden shadow-sm transition-all active:scale-[0.98] border border-gray-100';
+        card.innerHTML = `
+            <div class="aspect-[16/10] overflow-hidden bg-gray-50">
+                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+            </div>
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div><h4 class="font-bold text-lg text-[#1c1b1b]">${s.name}</h4><p class="text-[#50453b] text-sm mt-1">${s.description || s.desc || 'Serviço premium'}</p></div>
+                    <span class="font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
+                </div>
+                <button onclick="toggleCart('${s.id}')" class="w-full py-3 ${isInCart ? 'bg-green-500' : 'bg-gradient-to-br from-[#7f5353] to-[#d59f9f]'} text-white font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-transform">
+                    ${isInCart ? '✓ Adicionado' : 'Agendar'}
+                </button>
+            </div>`;
+        container.appendChild(card);
+    });
+    updateCartFab();
+}
+
+function toggleCart(id) {
+    const service = db.services.find(s => s.id == id);
+    if (!service) return;
+    
+    const index = cart.findIndex(item => item.id == id);
+    if (index > -1) {
+        cart.splice(index, 1);
+    } else {
+        cart.push(service);
+    }
+    renderServices();
+}
+
+function updateCartFab() {
+    const fab = document.getElementById('cart-fab');
+    if (!fab) return;
+    if (cart.length > 0) {
+        fab.classList.remove('hidden');
+        fab.innerHTML = `<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_bag</span><span style="position:absolute; top:-5px; right:-5px; background:#d59f9f; color:white; border-radius:50%; width:22px; height:22px; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${cart.length}</span>`;
+        fab.onclick = proceedToBooking;
+    } else {
+        fab.classList.add('hidden');
+    }
+}
+
+// ==========================================
+// BOOKING
+// ==========================================
+function proceedToBooking() {
+    if (cart.length === 0) return alert("Adicione serviços.");
+
+    const alertContainer = document.getElementById('alert-blocked-container');
+    const mainContent = document.querySelector('#page-booking main');
+    const bottomBtn = document.getElementById('btn-continue-booking');
+
+    if (db.currentUser && db.currentUser.status === 'pendente') {
+        if (alertContainer) { alertContainer.classList.remove('hidden'); alertContainer.classList.add('flex'); }
+        if (mainContent) mainContent.classList.add('opacity-30', 'pointer-events-none');
+        if (bottomBtn) bottomBtn.classList.add('hidden');
+    } else {
+        if (alertContainer) { alertContainer.classList.add('hidden'); alertContainer.classList.remove('flex'); }
+        if (mainContent) mainContent.classList.remove('opacity-30', 'pointer-events-none');
+        if (bottomBtn) bottomBtn.classList.remove('hidden');
+
+        const listEl = document.getElementById('selected-services-list');
+        if (listEl) {
+            listEl.innerHTML = '';
+            cart.forEach(s => {
+                const imgSrc = s.image_url || s.img || 'https://via.placeholder.com/100';
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-3 p-4 bg-[#f7f3f2] rounded-xl';
+                item.innerHTML = `<div class="h-12 w-12 rounded-lg bg-cover bg-center" style="background-image: url('${imgSrc}')"></div><div><p class="font-bold text-sm text-[#1c1b1b]">${s.name}</p><p class="text-xs text-[#50453b]">${formatCurrency(s.price)}</p></div>`;
+                listEl.appendChild(item);
+            });
+        }
+        initCalendar();
+        showPage('page-booking');
+    }
+}
+
+function initCalendar() {
+    const container = document.getElementById('dates-container');
+    const monthLabel = document.getElementById('current-month-label');
+    if (!container) return;
+
+    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+    if (!db.scheduleConfig.blockedDates) db.scheduleConfig.blockedDates = [];
+    if (!db.scheduleConfig.availableDays) db.scheduleConfig.availableDays = [1, 2, 3, 4, 5];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const displayDate = currentCalendarMonth || today;
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+    if (monthLabel) monthLabel.textContent = `${monthNames[displayDate.getMonth()]} ${displayDate.getFullYear()}`;
+    container.innerHTML = '';
+
+    const firstDay = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1);
+    const lastDay = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+
+    for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'flex-shrink-0 w-16 h-20';
+        container.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
+        currentDate.setHours(0, 0, 0, 0);
+
+        if (currentDate < today) {
+            const empty = document.createElement('div');
+            empty.className = 'flex-shrink-0 w-16 h-20 flex items-center justify-center';
+            empty.innerHTML = `<span class="text-lg font-bold text-gray-200">${day}</span>`;
+            container.appendChild(empty);
+            continue;
+        }
+
+        const dayAbbrev = currentDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+        const dayNum = currentDate.getDate();
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dayOfWeek = currentDate.getDay();
+
+        const isBlocked = db.scheduleConfig.blockedDates.includes(dateStr);
+        const isAvailableDay = db.scheduleConfig.availableDays.includes(dayOfWeek);
+
+        const pill = document.createElement('div');
+        pill.className = `flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-xl border transition-all cursor-pointer ${
+            isBlocked || !isAvailableDay ? 'bg-gray-100 text-gray-300 border-transparent cursor-not-allowed' : 'bg-white border-gray-200 hover:border-[#7f5353]'
+        }`;
+        pill.innerHTML = `<span class="text-[10px] font-bold uppercase">${dayAbbrev}</span><span class="text-lg font-bold">${dayNum}</span>`;
+
+        if (!isBlocked && isAvailableDay) {
+            pill.onclick = () => selectDate(dateStr, pill);
+        }
+        container.appendChild(pill);
+    }
+    populateTimes();
+}
+
+function prevMonth() {
+    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() - 1, 1);
+    initCalendar();
+}
+
+function nextMonth() {
+    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 1);
+    initCalendar();
+}
+
+function selectDate(dateStr, element) {
+    selectedDate = dateStr;
+    document.querySelectorAll('#dates-container > div').forEach(el => {
+        el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
+        el.classList.add('bg-white', 'border-gray-200');
+    });
+    element.classList.remove('bg-white', 'border-gray-200');
+    element.classList.add('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
+    populateTimes();
+}
+
+function populateTimes() {
+    const container = document.getElementById('times-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!selectedDate) {
+        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
+        return;
+    }
+
+    const start = parseInt(db.scheduleConfig.start.split(':')[0]);
+    const end = parseInt(db.scheduleConfig.end.split(':')[0]);
+    const slotDuration = 3;
+
+    for (let h = start; h < end; h += slotDuration) {
+        const timeStr = `${h.toString().padStart(2, '0')}:00`;
+        const btn = document.createElement('button');
+        btn.className = "py-3 px-4 rounded-xl bg-white border border-gray-200 text-sm font-medium hover:bg-[#f7f3f2] transition-colors";
+        btn.textContent = timeStr;
+        btn.onclick = () => selectTime(timeStr, btn);
+        container.appendChild(btn);
+    }
+}
+
+function selectTime(time, element) {
+    selectedTime = time;
+    document.querySelectorAll('#times-container button').forEach(el => {
+        el.classList.remove('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
+        el.classList.add('bg-white', 'border-gray-200');
+    });
+    element.classList.remove('bg-white', 'border-gray-200');
+    element.classList.add('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
+}
+
+// ==========================================
+// PAYMENT
+// ==========================================
+function goToPayment() {
+    if (!selectedDate || !selectedTime) {
+        showToast("Selecione data e horário.");
+        return;
+    }
+
+    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+
+    const serviceNames = cart.map(s => s.name).join(', ');
+    document.getElementById('pay-service-name').textContent = serviceNames;
+    document.getElementById('pay-service-date').textContent = `${formatDate(selectedDate)} às ${selectedTime}`;
+    document.getElementById('pay-service-price').textContent = formatCurrency(totalPrice);
+
+    const payment50Container = document.getElementById('payment-50-container');
+    if (payment50Container) {
+        if (db.currentUser && (db.currentUser.type === 'Novo' || db.currentUser.appointments_count === 0)) {
+            payment50Container.classList.remove('hidden');
+        } else {
+            payment50Container.classList.add('hidden');
+        }
+    }
+
+    document.getElementById('payment-50-info')?.classList.add('hidden');
+    document.getElementById('payment-full-info')?.classList.add('hidden');
+    document.getElementById('scheduled-date-container')?.classList.add('hidden');
+
+    const payInput = document.getElementById('input-pay-date');
+    const today = new Date();
+    const max = new Date();
+    max.setDate(today.getDate() + 20);
+
+    if (payInput) {
+        payInput.min = today.toISOString().split('T')[0];
+        payInput.max = max.toISOString().split('T')[0];
+        payInput.value = '';
+    }
+
+    selectedPaymentMethod = null;
+    showPage('page-payment');
+}
+
+function selectPaymentMethod(method) {
+    selectedPaymentMethod = method;
+
+    document.getElementById('payment-50-info')?.classList.add('hidden');
+    document.getElementById('payment-full-info')?.classList.add('hidden');
+    document.getElementById('scheduled-date-container')?.classList.add('hidden');
+
+    const radio = document.getElementById('payment-' + method);
+    if (radio) radio.checked = true;
+
+    if (method === '50') {
+        document.getElementById('payment-50-info')?.classList.remove('hidden');
+    } else if (method === 'full') {
+        document.getElementById('payment-full-info')?.classList.remove('hidden');
+    } else if (method === 'scheduled') {
+        const dateContainer = document.getElementById('scheduled-date-container');
+        if (dateContainer) dateContainer.classList.remove('hidden');
+    }
+}
+
+function requestPaymentLink() {
+    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const signal = (totalPrice / 2).toFixed(2);
+    const services = cart.map(s => s.name).join(', ');
+
+    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento do sinal (50%).%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}%0ASinal (50%): ${formatCurrency(parseFloat(signal))}`;
+    window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
+}
+
+function requestCardPayment() {
+    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const services = cart.map(s => s.name).join(', ');
+
+    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento via cartão.%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}`;
+    window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
+}
+
+function copyPixKey() {
+    navigator.clipboard.writeText('27997559191').then(() => {
+        showToast('Chave PIX copiada!');
+    }).catch(() => {
+        showToast('Erro ao copiar.');
+    });
+}
+
+async function confirmBooking() {
+    if (!selectedPaymentMethod) {
+        showToast("Selecione uma forma de pagamento.");
+        return;
+    }
+
+    let paymentDate = null;
+    if (selectedPaymentMethod === 'scheduled') {
+        paymentDate = document.getElementById('input-pay-date').value;
+        if (!paymentDate) {
+            showToast("Selecione a data para o pagamento programado.");
+            return;
+        }
+    }
+
+    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+
+    try {
+        await supabaseCreateAppointment({
+            services: cart.map(s => s.name),
+            price: totalPrice,
+            date: selectedDate,
+            time: selectedTime,
+            paymentMethod: selectedPaymentMethod,
+            paymentDate: paymentDate
+        });
+
+        await supabaseUpdateUser(db.currentUser.id, {
+            appointments_count: (db.currentUser.appointments_count || 0) + 1,
+            type: 'Recorrente'
+        });
+
+        const servicesNames = cart.map(s => s.name);
+        const finalPrice = totalPrice;
+        const finalDate = selectedDate;
+        const finalTime = selectedTime;
+        const finalMethod = selectedPaymentMethod;
+        
+        cart = [];
+        renderSuccess({
+            services: servicesNames,
+            price: finalPrice,
+            date: finalDate,
+            time: finalTime,
+            paymentMethod: finalMethod
+        });
+        showPage('page-success');
+        showToast('Agendamento realizado!');
+    } catch (error) {
+        console.error('Erro ao confirmar:', error);
+        showToast('Erro ao confirmar agendamento.');
+    }
+}
+
+function renderSuccess(app) {
+    document.getElementById('success-date').textContent = formatDate(app.date);
+    document.getElementById('success-time').textContent = app.time;
+    document.getElementById('success-services-list').textContent = app.services.join(', ');
+    document.getElementById('success-price').textContent = formatCurrency(app.price);
+    document.getElementById('success-payment-method').textContent = `Pagamento: ${formatPaymentMethod(app.paymentMethod)}`;
+}
+
+function formatPaymentMethod(method) {
+    const map = { '50': '50% (Sinal)', 'full': 'Antecipado', 'store': 'Na Loja', 'scheduled': 'Programado' };
+    return map[method] || method;
+}
+
+function formatCurrency(value) {
+    return `R$ ${parseFloat(value).toFixed(2).replace('.', ',')}`;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+// ==========================================
+// MY APPOINTMENTS
+// ==========================================
+async function renderMyAppointments() {
+    const container = document.getElementById('my-appointments-list');
+    if (!container) return;
+
+    if (!db.currentUser) {
+        container.innerHTML = '<p class="text-center text-gray-400">Faça login para ver seus agendamentos.</p>';
+        return;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('user_id', db.currentUser.id)
+            .order('appointment_date', { ascending: false });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <div class="w-20 h-20 rounded-full bg-[#f7f3f2] flex items-center justify-center mb-4">
+                        <span class="material-symbols-outlined text-4xl text-[#d59f9f]">calendar_month</span>
+                    </div>
+                    <h3 class="font-headline font-bold text-lg text-[#1c1b1b] mb-2">Nenhum agendamento</h3>
+                    <p class="text-sm text-[#50453b]">Você ainda não tem agendamentos marcados.</p>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = data.map(app => {
+            const statusColors = {
+                'Confirmado': 'bg-emerald-100 text-emerald-700',
+                'Pendente': 'bg-amber-100 text-amber-700',
+                'Concluído': 'bg-gray-100 text-gray-600',
+                'Cancelado': 'bg-red-100 text-red-600'
+            };
+            const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
+            const paymentColor = app.payment_status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+
+            return `
+                <div class="bg-white rounded-xl p-5 shadow-sm border border-[#d4c4b7]/10">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="font-headline font-bold text-[#1c1b1b]">${app.services_names}</p>
+                            <p class="text-xs text-[#50453b] mt-1">${formatDate(app.appointment_date)} às ${app.appointment_time}</p>
+                        </div>
+                        <span class="px-3 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${app.status}</span>
+                    </div>
+                    <div class="pt-3 border-t border-[#d4c4b7]/10">
+                        <p class="text-xs text-[#50453b]">Valor: <span class="font-bold text-[#7f5353]">${formatCurrency(app.price)}</span></p>
+                        <p class="text-[10px] ${paymentColor} mt-1 px-2 py-0.5 rounded-full inline-block">Pagamento: ${app.payment_status}</p>
+                    </div>
+                </div>`;
+        }).join('');
+    } catch (error) {
+        console.error('Erro ao carregar:', error);
+        container.innerHTML = '<p class="text-center text-red-400">Erro ao carregar agendamentos.</p>';
+    }
+}
+
+// ==========================================
+// ADMIN NAVIGATION
+// ==========================================
+function showAdminSection(section) {
+    document.querySelectorAll('.adm-section').forEach(s => s.classList.add('hidden'));
+    const el = document.getElementById(`adm-${section}`);
+    if (el) el.classList.remove('hidden');
+
+    const titles = { clients: 'Gestão de Clientes', schedule: 'Configuração de Agenda', portfolio: 'Gestão de Serviços', settings: 'Configurações' };
+    const titleEl = document.getElementById('admin-page-title');
+    if (titleEl) titleEl.textContent = titles[section] || 'Admin';
+
+    document.querySelectorAll('.adm-nav-link').forEach(link => {
+        link.classList.remove('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
+        link.classList.add('text-stone-500');
+    });
+
+    const currentLink = document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}')"]`);
+    if (currentLink) {
+        currentLink.classList.remove('text-stone-500');
+        currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
+    }
+
+    if (section === 'clients') renderAdminClients();
+    else if (section === 'schedule') renderAdminSchedule();
+    else if (section === 'portfolio') renderServicesGridAdmin();
+    else if (section === 'settings') renderAdminSettings();
+}
+
+// ==========================================
+// ADMIN DASHBOARD
+// ==========================================
+async function renderAdminDashboard() {
+    try {
+        const { data: appointments } = await supabase.from('appointments').select('*');
+        const { data: users } = await supabase.from('users').select('*');
+
+        const totalAppts = appointments?.length || 0;
+        const totalUsers = users?.length || 0;
+        const returningUsers = users?.filter(u => u.type === 'Recorrente').length || 0;
+        const returnRate = totalUsers > 0 ? Math.round((returningUsers / totalUsers) * 100) : 0;
+
+        document.getElementById('stat-total').textContent = totalAppts;
+        document.getElementById('stat-return').textContent = returnRate + '%';
+    } catch (error) {
+        console.error('Erro ao carregar dashboard:', error);
+    }
+}
+
+// ==========================================
+// ADMIN CLIENTS
+// ==========================================
+async function renderAdminClients() {
+    const tbody = document.getElementById('clients-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8">Carregando...</td></tr>';
+
+    try {
+        const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+
+        tbody.innerHTML = '';
+
+        for (const u of (data || [])) {
+            const { data: appointments } = await supabase.from('appointments').select('*').eq('user_id', u.id);
+            const lastApp = appointments?.sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))[0];
+
+            const statusClass = u.status === 'pendente' ? 'text-error' : 'text-emerald-600';
+            const statusDotClass = u.status === 'pendente' ? 'bg-error' : 'bg-emerald-500';
+            const profileImg = u.profile_image_url || 'https://via.placeholder.com/40';
+
+            const tr = document.createElement('tr');
+            tr.className = "group hover:bg-[#f7f3f2]/50 transition-colors";
+            tr.innerHTML = `
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <div class="flex items-center gap-4">
+                        <img src="${profileImg}" class="w-10 h-10 rounded-full object-cover">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-[#1c1b1b]">${u.name || 'Sem nome'}</span>
+                            <span class="text-xs text-stone-400">${u.email}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <select onchange="updateUserType('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
+                        <option value="Novo" ${u.type === 'Novo' ? 'selected' : ''}>Novo</option>
+                        <option value="Recorrente" ${u.type === 'Recorrente' ? 'selected' : ''}>Recorrente</option>
+                    </select>
+                </td>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <span class="text-stone-500 font-medium">${lastApp?.services_names || '-'}</span>
+                    <div class="text-[10px] text-stone-400">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</div>
+                </td>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <div class="flex items-center gap-2 ${statusClass} font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full ${statusDotClass}"></span>
+                        ${u.status === 'pendente' ? 'Pendente' : 'Realizado'}
+                    </div>
+                </td>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5 text-right">
+                    <select onchange="updateUserStatus('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
+                        <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>Realizado</option>
+                        <option value="pendente" ${u.status === 'pendente' ? 'selected' : ''}>Pendente</option>
+                    </select>
+                </td>`;
+            tbody.appendChild(tr);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar clientes:', error);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-400">Erro ao carregar clientes</td></tr>';
+    }
+}
+
+async function updateUserStatus(userId, newStatus) {
+    try {
+        await supabaseUpdateUser(userId, { status: newStatus });
+        showToast(`Status atualizado.`);
+    } catch (error) {
+        showToast('Erro ao atualizar.');
+    }
+}
+
+async function updateUserType(userId, newType) {
+    try {
+        await supabaseUpdateUser(userId, { type: newType });
+        showToast(`Cliente classificado como ${newType}.`);
+    } catch (error) {
+        showToast('Erro ao atualizar.');
+    }
+}
+
+// ==========================================
+// ADMIN SCHEDULE
+// ==========================================
+async function renderAdminSchedule() {
+    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+
+    const startInput = document.getElementById('config-start-time');
+    const endInput = document.getElementById('config-end-time');
+    if (startInput) startInput.value = db.scheduleConfig.start;
+    if (endInput) endInput.value = db.scheduleConfig.end;
+
+    const list = document.getElementById('blocked-dates-list');
+    if (list) {
+        list.innerHTML = '';
+        (db.scheduleConfig.blockedDates || []).forEach(d => {
+            const li = document.createElement('li');
+            li.className = "py-2 flex justify-between items-center";
+            li.innerHTML = `<span>${formatDate(d)}</span> <button onclick="removeBlockedDate('${d}')" class="text-red-500 text-xs hover:underline">Remover</button>`;
+            list.appendChild(li);
+        });
+    }
+}
+
+function addBlockedDate() {
+    const val = document.getElementById('input-block-date').value;
+    if (!val) return;
+    if (!db.scheduleConfig.blockedDates.includes(val)) {
+        db.scheduleConfig.blockedDates.push(val);
+        supabaseSaveScheduleConfig(db.scheduleConfig).then(() => {
+            renderAdminSchedule();
+            showToast('Data bloqueada.');
+        });
+    }
+}
+
+function removeBlockedDate(date) {
+    db.scheduleConfig.blockedDates = db.scheduleConfig.blockedDates.filter(d => d !== date);
+    supabaseSaveScheduleConfig(db.scheduleConfig).then(() => {
+        renderAdminSchedule();
+        showToast('Data desbloqueada.');
+    });
+}
+
+async function saveScheduleSettings() {
+    const startInput = document.getElementById('config-start-time');
+    const endInput = document.getElementById('config-end-time');
+
+    db.scheduleConfig.start = startInput?.value || "09:00";
+    db.scheduleConfig.end = endInput?.value || "18:00";
+
+    try {
+        await supabaseSaveScheduleConfig(db.scheduleConfig);
+        showToast("Agenda salva!");
+    } catch (error) {
+        showToast('Erro ao salvar.');
+    }
+}
+
+// ==========================================
+// ADMIN SERVICES
+// ==========================================
+function renderServicesGridAdmin() {
+    const container = document.getElementById('services-grid-admin');
+    if (!container) return;
+    container.innerHTML = '';
+
+    db.services.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'bg-[#f1edec] rounded-2xl overflow-hidden group hover:shadow-2xl transition-all duration-500 flex flex-col';
+
+        const imgSrc = s.image_url || s.img || '';
+        const displayImg = imgSrc || 'https://via.placeholder.com/400x400?text=Serviço';
+
+        card.innerHTML = `
+            <div class="aspect-square w-full overflow-hidden bg-[#ebe7e7] relative">
+                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+            </div>
+            <div class="p-6 flex-1 flex flex-col">
+                <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${s.name}</h3>
+                <p class="font-body text-sm text-stone-500 leading-relaxed mb-4 flex-1">${s.description || ''}</p>
+                <div class="flex justify-between items-center pt-4 border-t border-[#d4c4b7]/30">
+                    <span class="font-headline text-2xl font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
+                    <div class="flex gap-2">
+                        <button onclick="openEditServiceModal('${s.id}')" class="p-2 text-stone-400 hover:text-[#7f5353] transition-colors" title="Editar">
+                            <span class="material-symbols-outlined">edit_note</span>
+                        </button>
+                        <button onclick="confirmDeleteService('${s.id}')" class="p-2 text-stone-400 hover:text-red-500 transition-colors" title="Excluir">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        container.appendChild(card);
+    });
+}
+
+function openAddServiceModal() {
+    document.getElementById('service-id').value = '';
+    document.getElementById('service-name').value = '';
+    document.getElementById('service-desc').value = '';
+    document.getElementById('service-price').value = '';
+    document.getElementById('service-preview-img').src = 'https://via.placeholder.com/400x400?text=Serviço';
+    document.getElementById('service-modal').classList.remove('hidden');
+    document.getElementById('service-modal').classList.add('flex');
+}
+
+function openEditServiceModal(id) {
+    const service = db.services.find(s => s.id == id);
+    if (!service) return;
+
+    const imgSrc = service.image_url || service.img || 'https://via.placeholder.com/400x400?text=Serviço';
+
+    document.getElementById('service-id').value = service.id;
+    document.getElementById('service-name').value = service.name;
+    document.getElementById('service-desc').value = service.description || service.desc || '';
+    document.getElementById('service-price').value = service.price;
+    document.getElementById('service-preview-img').src = imgSrc;
+    document.getElementById('service-modal').classList.remove('hidden');
+    document.getElementById('service-modal').classList.add('flex');
+}
+
+function closeServiceModal() {
+    document.getElementById('service-modal').classList.add('hidden');
+    document.getElementById('service-modal').classList.remove('flex');
+}
+
+function previewServiceImage(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('Imagem muito grande. Máximo 5MB.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('service-preview-img');
+            if (preview) preview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+async function saveService() {
+    const id = document.getElementById('service-id').value;
+    const name = sanitizeString(document.getElementById('service-name').value.trim());
+    const desc = sanitizeString(document.getElementById('service-desc').value.trim());
+    const price = parseFloat(document.getElementById('service-price').value);
+    const imgSrc = document.getElementById('service-preview-img')?.src || '';
+
+    const isPlaceholder = imgSrc.includes('placeholder.com') || !imgSrc;
+    const imageUrlToSave = isPlaceholder ? '' : imgSrc;
+
+    if (!name) {
+        showToast('Digite o nome do serviço.');
+        return;
+    }
+    if (isNaN(price) || price < 0) {
+        showToast('Digite um preço válido.');
+        return;
+    }
+
+    try {
+        if (id) {
+            await supabaseUpdateService(id, { name, description: desc, price, image_url: imageUrlToSave });
+            showToast('Serviço atualizado!');
+        } else {
+            await supabaseCreateService({ name, desc, price, img: imageUrlToSave });
+            showToast('Novo serviço adicionado!');
+        }
+
+        await loadAllData();
+        closeServiceModal();
+        renderServicesGridAdmin();
+        renderServices();
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showToast('Erro ao salvar serviço.');
+    }
+}
+
+async function confirmDeleteService(id) {
+    if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
+    try {
+        await supabaseDeleteService(id);
+        await loadAllData();
+        renderServicesGridAdmin();
+        renderServices();
+        showToast('Serviço removido.');
+    } catch (error) {
+        showToast('Erro ao remover.');
+    }
+}
+
+// ==========================================
+// ADMIN SETTINGS
+// ==========================================
+function renderAdminSettings() {
+    const el = document.getElementById('admin-settings-photo');
+    if (el) el.src = db.settings.profileImg || 'https://via.placeholder.com/150';
+}
+
+function handleProfileImageUpload(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+            showToast('Selecione um arquivo de imagem.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('Imagem muito grande. Máximo 5MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            db.settings.profileImg = e.target.result;
+            supabaseSaveSettings('profileImg', e.target.result).then(() => {
+                renderAdminSettings();
+                updateManuProfilePhoto();
+                const avatar = document.getElementById('admin-avatar');
+                if (avatar) avatar.src = e.target.result;
+                showToast('Foto atualizada!');
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// ==========================================
+// LOGOUT
+// ==========================================
+function confirmLogout() {
+    const modal = document.getElementById('logout-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeLogoutModal() {
+    const modal = document.getElementById('logout-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+function logout() {
+    clearSession();
+    cart = [];
+    closeLogoutModal();
+    showLoginStep1();
+    showPage('page-login');
+    showToast('Você saiu da conta.');
+}
+
+// ==========================================
+// INITIALIZATION
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    await initSupabase();
+    updateManuProfilePhoto();
+    hideAllPages();
+
+    if (!checkAutoLogin()) {
+        const loginPage = document.getElementById('page-login');
+        if (loginPage) loginPage.classList.add('active');
+    }
+});
+
+// ==========================================
+// HELPERS
+// ==========================================
+function sanitizeString(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function showToast(message) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `<div class="toast-message bg-[#1c1b1b] text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium">${message}</div>`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

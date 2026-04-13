@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Espaço das Patroas</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#7f5353",
+                        secondary: "#675d54",
+                        tertiary: "#645d55",
+                        error: "#ba1a1a",
+                        background: "#fdf8f8",
+                        surface: "#fdf8f8",
+                        "surface-container-low": "#f7f3f2",
+                        "surface-container": "#f1edec",
+                        "on-surface": "#1c1b1b",
+                        "on-surface-variant": "#50453b",
+                        "outline-variant": "#d4c4b7",
+                        "primary-container": "#d59f9f",
+                        "tertiary-container": "#b4aba1"
+                    },
+                    fontFamily: {
+                        headline: ["Manrope"],
+                        body: ["Plus Jakarta Sans"]
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fdf8f8; color: #1c1b1b; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .hidden { display: none !important; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        @media (max-width: 640px) {
+            body { font-size: 14px; }
+            nav.fixed.bottom-0 { padding-left: 0.5rem; padding-right: 0.5rem; }
+            nav.fixed.bottom-0 a { padding: 0.5rem !important; }
+            .toast { bottom: 80px !important; }
+            input, select, textarea { font-size: 16px !important; }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* has-[:checked] for radio buttons */
+        .has-[:checked]:bg-\[\#f1edec\] { background-color: #f1edec; }
+    </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+
+    <!-- ==================== CLIENT VIEW ==================== -->
+    <div id="client-view">
+        
+        <!-- PAGE: HOME -->
+        <section id="page-home" class="page min-h-screen pb-24">
+            <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
+                <div class="flex items-center gap-4">
+                    <img id="home-profile-pic" src="https://via.placeholder.com/150?text=Manu+Sarti" alt="Manu Sarti" class="w-10 h-10 rounded-full object-cover">
+                    <div>
+                        <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Espaço das Patroas</h1>
+                        <p class="text-[10px] uppercase tracking-widest text-stone-400">Bem-vinda, <span id="user-name-display">!</span></p>
+                    </div>
+                </div>
+                <div class="ml-auto">
+                    <button onclick="proceedToBooking()" class="relative w-12 h-12 rounded-full bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform" id="cart-fab">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
+                    </button>
+                </div>
+            </header>
+
+            <main class="pt-20 px-4">
+                <div class="mt-6">
+                    <img id="main-profile-pic" src="https://via.placeholder.com/400x200?text=Manu+Sarti" alt="Manu Sarti" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg">
+                </div>
+
+                <div class="mt-8 mb-6">
+                    <h2 class="font-headline font-extrabold text-2xl text-[#7f5353] tracking-tight">Serviços</h2>
+                    <p class="text-sm text-stone-500 mt-1">Escolha o que combination com você</p>
+                </div>
+
+                <div id="services-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </main>
+
+            <nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md border-t border-[#d4c4b7]/15">
+                <div class="flex justify-around items-center px-4 py-3">
+                    <a onclick="goToHome()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl py-2 px-4 cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
+                    </a>
+                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
+                    </a>
+                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">person</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    </a>
+                </div>
+            </nav>
+        </section>
+
+        <!-- PAGE: MY APPOINTMENTS -->
+        <section id="page-my-appointments" class="page min-h-screen pb-24">
+            <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined text-[#7f5353] cursor-pointer active:scale-95" onclick="goToHome()">arrow_back</span>
+                    <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Meus Agendamentos</h1>
+                </div>
+            </header>
+            <main class="pt-20 px-6">
+                <section class="mb-8">
+                    <div id="my-appointments-list" class="space-y-4"></div>
+                </section>
+            </main>
+            <nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md border-t border-[#d4c4b7]/15">
+                <div class="flex justify-around items-center px-4 py-3">
+                    <a onclick="goToHome()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">home</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
+                    </a>
+                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl py-2 px-4 cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
+                    </a>
+                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">person</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    </a>
+                </div>
+            </nav>
+        </section>
+
+        <!-- PAGE LOGIN -->
+        <section id="page-login" class="page active min-h-screen flex flex-col">
+            <div class="flex-1 flex flex-col justify-center px-6 py-12">
+                <div class="text-center mb-8">
+                    <img src="https://via.placeholder.com/150?text=Manu+Sarti" alt="Manu Sarti" class="w-24 h-24 rounded-full object-cover mx-auto shadow-lg">
+                    <h2 class="font-headline font-extrabold text-3xl text-[#7f5353] mt-6 tracking-tight">Espaço das Patroas</h2>
+                    <p class="text-sm text-stone-500 mt-2">Entre ou cadastre-se para agendar</p>
+                </div>
+
+                <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
+                    <form onsubmit="event.preventDefault(); handleLoginStep1();" id="login-form-step1" class="flex flex-col gap-6">
+                        <div class="relative group">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Email</label>
+                            <input id="input-login-email" type="email" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="exemplo@email.com" required />
+                        </div>
+                        <button type="submit" id="btn-login-step1" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
+                            Continuar
+                        </button>
+                    </form>
+                    <form onsubmit="event.preventDefault(); handleLogin();" id="login-form-step2" class="flex flex-col gap-6 hidden">
+                        <div class="text-center mb-2">
+                            <p class="text-sm text-[#50453b]">Complete seu cadastro</p>
+                        </div>
+                        <div class="relative group">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Nome</label>
+                            <input id="input-login-name" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="Seu nome completo" required />
+                        </div>
+                        <div class="relative group">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Telefone</label>
+                            <input id="input-login-phone" type="tel" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="(00) 00000-0000" required />
+                        </div>
+                        <button type="submit" id="btn-login" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
+                            Cadastrar
+                        </button>
+                        <button type="button" onclick="showLoginStep1()" class="text-sm text-[#7f5353] underline">Voltar</button>
+                    </form>
+                </section>
+            </div>
+        </section>
+
+        <!-- PAGE: BOOKING -->
+        <section id="page-booking" class="page min-h-screen pb-24">
+            <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined text-[#7f5353] cursor-pointer active:scale-95" onclick="goToHome()">arrow_back</span>
+                    <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Agendar</h1>
+                </div>
+            </header>
+
+            <div id="alert-blocked-container" class="hidden fixed top-20 left-4 right-4 z-40 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+                <span class="material-symbols-outlined text-red-500">warning</span>
+                <p class="text-sm text-red-700">Você tem pagamento pendente. Regularize para fazer novo agendamento.</p>
+                <a href="https://wa.me/5527997559191?text=Olá! Vim pelo Espaço das Patroas e preciso regularizar meu pagamento." target="_blank" class="ml-auto px-4 py-2 bg-[#25D366] text-white rounded-lg text-sm font-bold">Falar com atendente</a>
+            </div>
+
+            <main class="pt-20 px-6">
+                <section class="mb-6">
+                    <h3 class="font-headline font-bold text-lg mb-4">Serviços selecionados</h3>
+                    <div id="selected-services-list" class="space-y-3"></div>
+                </section>
+
+                <section class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-headline font-bold text-lg">Selecione a data</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="prevMonth()" class="w-8 h-8 rounded-lg bg-[#f7f3f2] flex items-center justify-center hover:bg-[#d59f9f]/20 transition-colors">
+                                <span class="material-symbols-outlined text-sm text-[#7f5353]">chevron_left</span>
+                            </button>
+                            <span id="current-month-label" class="text-xs font-bold uppercase tracking-widest text-[#7f5353] min-w-[100px] text-center">Mês</span>
+                            <button onclick="nextMonth()" class="w-8 h-8 rounded-lg bg-[#f7f3f2] flex items-center justify-center hover:bg-[#d59f9f]/20 transition-colors">
+                                <span class="material-symbols-outlined text-sm text-[#7f5353]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="dates-container" class="flex gap-3 overflow-x-auto pb-4 no-scrollbar"></div>
+                </section>
+
+                <section class="mt-6">
+                    <h3 class="font-headline font-bold text-lg mb-4">Selecione o horário</h3>
+                    <div id="times-container" class="grid grid-cols-3 gap-3"></div>
+                </section>
+
+                <div id="btn-continue-booking" class="mt-8">
+                    <button onclick="goToPayment()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
+                        Continuar para pagamento
+                    </button>
+                </div>
+            </main>
+        </section>
+
+        <!-- PAGE: PAYMENT -->
+        <section id="page-payment" class="page min-h-screen pb-24">
+            <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined text-[#7f5353] cursor-pointer active:scale-95" onclick="goBackFromPayment()">arrow_back</span>
+                    <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Pagamento</h1>
+                </div>
+            </header>
+
+            <main class="pt-20 px-6">
+                <div class="bg-[#f7f3f2] rounded-xl p-6 mb-6">
+                    <h3 class="font-headline font-bold text-lg text-[#1c1b1b]" id="pay-service-name">Serviço</h3>
+                    <p class="text-sm text-[#50453b] mt-1" id="pay-service-date">Data e horário</p>
+                    <p class="text-2xl font-extrabold text-[#7f5353] mt-3" id="pay-service-price">R$ 0,00</p>
+                </div>
+
+                <section id="payment-methods-section" class="space-y-4">
+                    <!-- Opção 50% -->
+                    <div id="payment-50-container" class="hidden">
+                        <label for="payment-50" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('50')">
+                            <input id="payment-50" class="sr-only" name="payment" type="radio" value="50" onchange="selectPaymentMethod('50')"/>
+                            <div class="flex items-center justify-between w-full">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">percent</span></div>
+                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">50% (Sinal)</h4><p class="text-xs text-[#50453b]">Sinal de reserva - clique para ver como pagar</p></div>
+                                </div>
+                                <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
+                                </div>
+                            </div>
+                        </label>
+                        <div id="payment-50-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353]">
+                            <p class="text-sm text-[#50453b] mb-3">Para realizar o pagamento do sinal (50%), entre em contato pelo WhatsApp e solicite o link de pagamento.</p>
+                            <button onclick="requestPaymentLink()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
+                                Solicitar Link de Pagamento
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Opção Antecipado -->
+                    <label for="payment-full" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('full')">
+                        <input id="payment-full" class="sr-only" name="payment" type="radio" value="full" onchange="selectPaymentMethod('full')"/>
+                        <div class="flex items-center justify-between w-full">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">account_balance_wallet</span></div>
+                                <div><h4 class="font-headline font-bold text-[#1c1b1b]">Antecipado</h4><p class="text-xs text-[#50453b]">PIX ou cartão - clique para ver opções</p></div>
+                            </div>
+                            <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
+                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
+                            </div>
+                        </div>
+                    </label>
+                    <div id="payment-full-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs text-[#50453b]">Chave PIX (Telefone):</p>
+                            <strong class="text-sm text-[#7f5353]">27 99755-5191</strong>
+                        </div>
+                        <button onclick="copyPixKey()" class="w-full py-3 rounded-xl bg-[#7f5353] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                            <span class="material-symbols-outlined">content_copy</span>
+                            Copiar Chave PIX
+                        </button>
+                        <div class="border-t border-[#d4c4b7]/30 pt-3">
+                            <p class="text-xs text-[#50453b] mb-2">Ou prefira pagar com cartão:</p>
+                            <button onclick="requestCardPayment()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
+                                Solicitar Link de Cartão
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Opção Após atendimento -->
+                    <label for="payment-store" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('store')">
+                        <input id="payment-store" class="sr-only" name="payment" type="radio" value="store" onchange="selectPaymentMethod('store')"/>
+                        <div class="flex items-center justify-between w-full">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">payments</span></div>
+                                <div><h4 class="font-headline font-bold text-[#1c1b1b]">Após o atendimento</h4><p class="text-xs text-[#50453b]">Pague diretamente no balcão</p></div>
+                            </div>
+                            <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
+                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- Opção Programado -->
+                    <label for="payment-scheduled" class="flex flex-col p-5 rounded-xl bg-[#f1edec] border-b-2 border-[#7f5353] cursor-pointer transition-all" onclick="selectPaymentMethod('scheduled')">
+                        <input id="payment-scheduled" class="sr-only" name="payment" type="radio" value="scheduled" onchange="selectPaymentMethod('scheduled')"/>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-[#7f5353] text-white flex items-center justify-center">
+                                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">schedule</span>
+                                </div>
+                                <div>
+                                    <h4 class="font-headline font-bold text-[#1c1b1b]">Programado</h4>
+                                    <p class="text-xs text-[#50453b]">Agende o débito em até 20 dias</p>
+                                </div>
+                            </div>
+                            <div class="w-5 h-5 rounded-full border-2 border-[#7f5353] flex items-center justify-center">
+                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-100"></div>
+                            </div>
+                        </div>
+                        <div id="scheduled-date-container" class="hidden mt-4 bg-white rounded-xl p-4 border-l-4 border-[#7f5353]">
+                            <label class="text-[10px] uppercase tracking-wider text-[#7f5353] font-bold mb-2 block" for="input-pay-date">Data do Débito</label>
+                            <input id="input-pay-date" type="date" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] text-[#1c1b1b] font-medium py-2" />
+                            <p class="text-[11px] italic text-[#82756a] mt-2 flex gap-1">
+                                <span class="material-symbols-outlined text-[14px]">info</span>
+                                Selecione uma data para o pagamento (até 20 dias).
+                            </p>
+                        </div>
+                    </label>
+                </section>
+
+                <button onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
+                    Confirmar Agendamento
+                </button>
+            </main>
+        </section>
+
+        <!-- PAGE: SUCCESS -->
+        <section id="page-success" class="page min-h-screen flex flex-col justify-center items-center px-6 text-center">
+            <div class="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
+                <span class="material-symbols-outlined text-5xl text-emerald-500" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+            </div>
+            <h2 class="font-headline font-extrabold text-3xl text-[#7f5353] tracking-tight">Agendamento Confirmado!</h2>
+            <p class="text-stone-500 mt-3">Você receberá uma confirmação em breve</p>
+
+            <div class="w-full bg-[#f7f3f2] rounded-xl p-6 mt-8 text-left">
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-stone-500">Serviço</span>
+                        <span class="font-bold text-[#1c1b1b]" id="success-services-list">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-stone-500">Data</span>
+                        <span class="font-bold text-[#1c1b1b]" id="success-date">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-stone-500">Horário</span>
+                        <span class="font-bold text-[#1c1b1b]" id="success-time">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-stone-500">Valor</span>
+                        <span class="font-bold text-[#7f5353]" id="success-price">-</span>
+                    </div>
+                    <div class="border-t border-[#d4c4b7]/30 pt-3">
+                        <span class="text-stone-500" id="success-payment-method">Pagamento: -</span>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="goToHome()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
+                Voltar para Home
+            </button>
+        </section>
+
+    </div>
+
+    <!-- ==================== ADMIN VIEW ==================== -->
+    <div id="admin-view" class="hidden">
+        <!-- SideNavBar -->
+        <aside class="fixed left-0 top-0 h-full flex flex-col py-8 w-64 bg-[#fdf8f8] z-50">
+            <div class="px-8 mb-12">
+                <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
+                <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-1">Administração</p>
+            </div>
+            <nav class="flex-1 px-4 space-y-2">
+                <a onclick="showAdminSection('clients')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <span class="material-symbols-outlined">group</span>
+                    <span>Clientes</span>
+                </a>
+                <a onclick="showAdminSection('schedule')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <span class="material-symbols-outlined">calendar_month</span>
+                    <span>Agenda</span>
+                </a>
+                <a onclick="showAdminSection('portfolio')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <span class="material-symbols-outlined">content_cut</span>
+                    <span>Serviços</span>
+                </a>
+                <a onclick="showAdminSection('settings')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Configurações</span>
+                </a>
+            </nav>
+            <div class="px-6 mt-auto">
+                <button onclick="switchToClientView()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-sm">person</span>
+                    Sair do Admin
+                </button>
+            </div>
+        </aside>
+
+        <!-- TopNavBar -->
+        <header class="fixed top-0 right-0 left-64 z-40 flex justify-between items-center px-12 w-full h-16 bg-[#fdf8f8]/80 backdrop-blur-xl border-b border-[#d4c4b7]/15">
+            <h2 id="admin-page-title" class="font-headline text-2xl font-extrabold text-primary">Clientes</h2>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-3 pl-6 border-l border-[#d4c4b7]/30">
+                    <div class="text-right">
+                        <p class="text-[10px] font-bold tracking-widest uppercase">Admin</p>
+                        <p class="text-xs text-stone-500 font-medium">Manu Sarti</p>
+                    </div>
+                    <img id="admin-avatar" src="https://via.placeholder.com/150?text=Manu" alt="Avatar" class="w-10 h-10 rounded-full object-cover">
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="ml-64 pt-24 pb-12 px-12">
+
+            <!-- SECTION: CLIENTS -->
+            <section id="adm-clients" class="adm-section">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-br from-[#7f5353] to-[#d59f9f] rounded-2xl p-6 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-white/70 text-sm">Total de Atendimentos</p>
+                                <p class="text-4xl font-extrabold mt-2" id="stat-total">0</p>
+                            </div>
+                            <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-2xl">event_available</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#f7f3f2] rounded-2xl p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-stone-500 text-sm">Taxa de Retorno</p>
+                                <p class="text-4xl font-extrabold mt-2 text-[#7f5353]" id="stat-return">0%</p>
+                            </div>
+                            <div class="w-14 h-14 rounded-full bg-[#d59f9f]/20 flex items-center justify-center text-[#7f5353]">
+                                <span class="material-symbols-outlined text-2xl">trending_up</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-[#d4c4b7]/10">
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Cliente</th>
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Tipo</th>
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Último Serviço</th>
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Status</th>
+                                    <th class="px-8 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-stone-400">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clients-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: SCHEDULE -->
+            <section id="adm-schedule" class="adm-section hidden">
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8 mb-8">
+                    <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-6">Horários e funcionamento</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Abertura</label>
+                            <input id="config-start-time" type="time" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="09:00"/>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Fechamento</label>
+                            <input id="config-end-time" type="time" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="18:00"/>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button onclick="saveScheduleSettings()" class="px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Salvar Configurações</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
+                    <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-6">Datas bloqueadas</h3>
+                    <div class="flex gap-4 mb-6">
+                        <input id="input-block-date" type="date" class="flex-1 bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
+                        <button onclick="addBlockedDate()" class="px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Bloquear Data</button>
+                    </div>
+                    <ul id="blocked-dates-list" class="space-y-2"></ul>
+                </div>
+            </section>
+
+            <!-- SECTION: PORTFOLIO -->
+            <section id="adm-portfolio" class="adm-section hidden">
+                <div class="flex justify-between items-end mb-8">
+                    <div>
+                        <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Gestão de Serviços</h2>
+                        <p class="text-stone-500 mt-2">Personalize seu catálogo de experiências</p>
+                    </div>
+                    <button onclick="openAddServiceModal()" class="px-6 py-3 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md">
+                        <span class="material-symbols-outlined">add</span>
+                        ADICIONAR SERVIÇO
+                    </button>
+                </div>
+                <div id="services-grid-admin" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </section>
+
+            <!-- SECTION: SETTINGS -->
+            <section id="adm-settings" class="adm-section hidden">
+                <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-8">Configurações</h2>
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
+                    <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-6">Foto de Perfil</h3>
+                    <div class="flex items-center gap-6">
+                        <img id="admin-settings-photo" src="https://via.placeholder.com/150" alt="Foto" class="w-24 h-24 rounded-full object-cover">
+                        <div>
+                            <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-[#f7f3f2] rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
+                                <span class="material-symbols-outlined">upload</span>
+                                Alterar Foto
+                                <input type="file" class="hidden" accept="image/*" onchange="handleProfileImageUpload(this)"/>
+                            </label>
+                            <p class="text-xs text-stone-400 mt-2">Máximo 5MB</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ==================== SERVICE MODAL ==================== -->
+    <div id="service-modal" class="modal hidden">
+        <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-headline font-bold text-xl text-[#1c1b1b]">Editar Serviço</h3>
+                <button onclick="closeServiceModal()" class="w-8 h-8 rounded-full bg-[#f7f3f2] flex items-center justify-center text-stone-400 hover:text-[#1c1b1b] transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <input type="hidden" id="service-id"/>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nome</label>
+                    <input id="service-name" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Descrição</label>
+                    <textarea id="service-desc" rows="3" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Preço (R$)</label>
+                    <input id="service-price" type="number" step="0.01" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Foto</label>
+                    <div class="flex items-center gap-4">
+                        <img id="service-preview-img" src="https://via.placeholder.com/400x400?text=Serviço" alt="Preview" class="w-20 h-20 rounded-xl object-cover">
+                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-[#f7f3f2] rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
+                            <span class="material-symbols-outlined">upload</span>
+                            Upload
+                            <input type="file" class="hidden" accept="image/*" onchange="previewServiceImage(this)"/>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <button onclick="saveService()" class="w-full mt-6 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition-opacity">Salvar</button>
+        </div>
+    </div>
+
+    <!-- ==================== LOGOUT MODAL ==================== -->
+    <div id="logout-modal" class="modal hidden">
+        <div class="bg-white rounded-2xl w-full max-w-sm mx-4 p-6 text-center">
+            <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl text-red-500">logout</span>
+            </div>
+            <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-2">Sair da conta?</h3>
+            <p class="text-stone-500 text-sm mb-6">Você será desconectado e precisará fazer login novamente.</p>
+            <div class="flex gap-3">
+                <button onclick="closeLogoutModal()" class="flex-1 py-3 bg-[#f7f3f2] text-[#1c1b1b] rounded-xl font-bold text-sm hover:bg-[#ebe7e7] transition-colors">Cancelar</button>
+                <button onclick="logout()" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-colors">Sair</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

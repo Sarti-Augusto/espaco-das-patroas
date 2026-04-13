@@ -366,15 +366,15 @@
                                 <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-100"></div>
                             </div>
                         </div>
-                        <div id="scheduled-date-container" class="hidden mt-4 bg-white rounded-xl p-4 border-l-4 border-[#7f5353]">
-                            <label class="text-[10px] uppercase tracking-wider text-[#7f5353] font-bold mb-2 block" for="input-pay-date">Data do Débito</label>
-                            <input id="input-pay-date" type="date" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] text-[#1c1b1b] font-medium py-2" />
-                            <p class="text-[11px] italic text-[#82756a] mt-2 flex gap-1">
-                                <span class="material-symbols-outlined text-[14px]">info</span>
-                                Selecione uma data para o pagamento (até 20 dias).
-                            </p>
-                        </div>
                     </label>
+                    <div id="scheduled-date-container" class="hidden mt-4 bg-white rounded-xl p-4 border-l-4 border-[#7f5353]">
+                        <label class="text-[10px] uppercase tracking-wider text-[#7f5353] font-bold mb-2 block" for="input-pay-date">Data do Débito</label>
+                        <input id="input-pay-date" type="date" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] text-[#1c1b1b] font-medium py-2" />
+                        <p class="text-[11px] italic text-[#82756a] mt-2 flex gap-1">
+                            <span class="material-symbols-outlined text-[14px]">info</span>
+                            Selecione uma data para o pagamento (até 20 dias).
+                        </p>
+                    </div>
                 </section>
 
                 <button onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
@@ -564,28 +564,6 @@
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <!-- Coluna direita: Stats e Próximo -->
                     <div class="xl:col-span-1 space-y-6">
-                        <div class="bg-[#f7f3f2] rounded-2xl p-6">
-                            <h3 class="text-[10px] font-bold tracking-[0.2em] uppercase text-stone-400 mb-4">Profissionais</h3>
-                            <div class="space-y-3">
-                                <label class="flex items-center gap-3 cursor-pointer group">
-                                    <div class="w-10 h-10 rounded-xl bg-[#d59f9f] flex items-center justify-center text-white font-bold">CT</div>
-                                    <div class="flex-1">
-                                        <p class="text-sm font-bold text-on-surface">Camila Torres</p>
-                                        <p class="text-[10px] text-stone-500 uppercase tracking-wider">Especialista Nails</p>
-                                    </div>
-                                    <input checked="" class="rounded text-primary focus:ring-primary/20 bg-transparent border-outline-variant" type="checkbox"/>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer group">
-                                    <div class="w-10 h-10 rounded-xl bg-[#645d55] flex items-center justify-center text-white font-bold">RL</div>
-                                    <div class="flex-1">
-                                        <p class="text-sm font-bold text-on-surface">Renata Lima</p>
-                                        <p class="text-[10px] text-stone-500 uppercase tracking-wider">Esteticista Facial</p>
-                                    </div>
-                                    <input checked="" class="rounded text-primary focus:ring-primary/20 bg-transparent border-outline-variant" type="checkbox"/>
-                                </label>
-                            </div>
-                        </div>
-
                         <div class="bg-white rounded-2xl border border-[#d4c4b7]/10 p-6 flex items-center justify-between">
                             <div>
                                 <p class="text-[10px] font-bold tracking-[0.2em] uppercase text-stone-400">Total Hoje</p>

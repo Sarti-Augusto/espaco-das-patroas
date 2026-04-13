@@ -231,6 +231,7 @@ let selectedTime = null;
 let selectedPaymentMethod = null;
 let currentAgendaMonth = new Date();
 let agendaView = 'month'; // 'month', 'week', 'day'
+let allAppointmentsCache = []; // Cache de agendamentos para o calendário admin
 let currentCalendarMonth = new Date();
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
@@ -301,8 +302,17 @@ function handleLoginStep1() {
         saveSession();
 
         updateManuProfilePhoto();
+
+        // Verifica se precisa completar cadastro
+        if (!user.name || !user.phone || user.name.trim() === '' || user.phone.trim() === '') {
+            document.getElementById('input-login-name').value = user.name || '';
+            document.getElementById('input-login-phone').value = user.phone || '';
+            showLoginStep2();
+            return;
+        }
+
         const userNameEl = document.getElementById('user-name-display');
-        if (userNameEl && user.name) userNameEl.textContent = user.name.split(' ')[0];
+        if (userNameEl) userNameEl.textContent = user.name.split(' ')[0];
         renderServices();
         updateCartFab();
         showPage('page-home');
@@ -497,7 +507,19 @@ function proceedToBooking() {
         return;
     }
 
-    // Se currentUser não está carregado ainda, tenta restaurar
+    // Se DB ainda não carregou, espera
+    if (!isDbLoaded) {
+        showToast("Carregando...");
+        const checkDb = setInterval(() => {
+            if (isDbLoaded) {
+                clearInterval(checkDb);
+                proceedToBooking();
+            }
+        }, 100);
+        return;
+    }
+
+    // Se currentUser não está carregado, tenta restaurar
     if (!db.currentUser) {
         const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
         if (savedUserId && db.users.length > 0) {
@@ -973,15 +995,32 @@ async function renderAdminClients() {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
 
     try {
-        const { data, error } = await window.supabase.from('users').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
+        // Busca todos os usuários e agendamentos em paralelo (evita N+1)
+        const [usersResult, appointmentsResult] = await Promise.all([
+            window.supabase.from('users').select('*').order('created_at', { ascending: false }),
+            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
+        ]);
+
+        if (usersResult.error) throw usersResult.error;
+
+        const users = usersResult.data || [];
+        const allAppointments = appointmentsResult.data || [];
+
+        // Cruza dados em memória
+        const appointmentsByUser = {};
+        allAppointments.forEach(app => {
+            if (!appointmentsByUser[app.user_id]) {
+                appointmentsByUser[app.user_id] = [];
+            }
+            appointmentsByUser[app.user_id].push(app);
+        });
 
         tbody.innerHTML = '';
 
-        for (const u of (data || [])) {
-            const { data: appointments } = await window.supabase.from('appointments').select('*').eq('user_id', u.id);
-            const lastApp = appointments?.sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))[0];
-            const totalAppts = appointments?.length || 0;
+        for (const u of users) {
+            const userAppointments = appointmentsByUser[u.id] || [];
+            const lastApp = userAppointments.sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))[0];
+            const totalAppts = userAppointments.length;
 
             const statusClass = u.status === 'pendente' ? 'text-error' : 'text-emerald-600';
             const statusDotClass = u.status === 'pendente' ? 'bg-error' : 'bg-emerald-500';
@@ -1157,9 +1196,22 @@ function renderAdminSchedule() {
         });
     }
 
+    // Carrega agendamentos para o cache do calendário
+    loadAppointmentsForCalendar();
+
     // Renderiza o calendário da agenda
     renderAgendaCalendar();
     updateAgendaMonthLabel();
+}
+
+async function loadAppointmentsForCalendar() {
+    try {
+        const { data } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
+        allAppointmentsCache = data || [];
+    } catch (error) {
+        console.error('Erro ao carregar agendamentos para calendário:', error);
+        allAppointmentsCache = [];
+    }
 }
 
 function renderAgendaCalendar() {
@@ -1248,9 +1300,10 @@ function renderAgendaCalendar() {
 }
 
 function getAppointmentsForMonth(year, month) {
-    // Filtra agendamentos do mês - implementação simples
-    // Em produção, isso viria do Supabase
-    return [];
+    return allAppointmentsCache.filter(app => {
+        const appDate = new Date(app.appointment_date);
+        return appDate.getFullYear() === year && appDate.getMonth() === month;
+    });
 }
 
 function updateAgendaMonthLabel() {

@@ -497,23 +497,33 @@ function proceedToBooking() {
         return;
     }
 
-    // Tenta restaurar sessão do localStorage antes de verificar
+    // Se currentUser não está carregado ainda, tenta restaurar
     if (!db.currentUser) {
         const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
-        if (savedUserId) {
-            // Força recarregar dados do Supabase para verificar sessão
-            loadAllData().then(() => {
-                const user = db.users.find(u => u.id === savedUserId);
-                if (user) {
-                    db.currentUser = user;
-                    db.isAdmin = user.email === ADMIN_EMAIL;
-                    proceedToBookingActual();
-                } else {
-                    showPage('page-login');
+        if (savedUserId && db.users.length > 0) {
+            // Usuários já carregados, encontra direto
+            const user = db.users.find(u => u.id === savedUserId);
+            if (user) {
+                db.currentUser = user;
+                db.isAdmin = user.email === ADMIN_EMAIL;
+                proceedToBookingActual();
+                return;
+            }
+        } else if (savedUserId) {
+            // Usuários ainda não carregados, espera e tenta novamente
+            const checkUser = setInterval(() => {
+                if (db.users.length > 0) {
+                    clearInterval(checkUser);
+                    const user = db.users.find(u => u.id === savedUserId);
+                    if (user) {
+                        db.currentUser = user;
+                        db.isAdmin = user.email === ADMIN_EMAIL;
+                        proceedToBookingActual();
+                    } else {
+                        showPage('page-login');
+                    }
                 }
-            }).catch(() => {
-                showPage('page-login');
-            });
+            }, 100);
             return;
         }
         showPage('page-login');

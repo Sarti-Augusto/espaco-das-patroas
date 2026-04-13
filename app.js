@@ -20,9 +20,9 @@ async function initSupabase() {
         await loadAllData();
         isDbLoaded = true;
         console.log('Supabase conectado!');
+        updateManuProfilePhoto();
     } catch (error) {
         console.error('Erro ao conectar com Supabase:', error);
-        showToast('Erro de conexão. Tentando modo offline...');
     }
 }
 
@@ -57,7 +57,9 @@ async function loadAllData() {
         const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
         if (savedUserId) {
             db.currentUser = db.users.find(u => u.id === savedUserId);
-            db.isAdmin = db.currentUser?.email === ADMIN_EMAIL;
+            if (db.currentUser) {
+                db.isAdmin = db.currentUser.email === ADMIN_EMAIL;
+            }
         }
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -88,7 +90,8 @@ async function supabaseLogin(email) {
             name: '',
             email: email,
             type: 'Novo',
-            status: 'ok'
+            status: 'ok',
+            appointments_count: 0
         }).select().single();
 
         if (error) throw error;
@@ -188,12 +191,20 @@ async function supabaseSaveScheduleConfig(config) {
     return data;
 }
 
+async function supabaseGetAppointments() {
+    const { data, error } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
 // ==========================================
 // AUTO-LOGIN
 // ==========================================
 function checkAutoLogin() {
+    if (!isDbLoaded) return false;
+    
     const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
-    if (savedUserId && isDbLoaded) {
+    if (savedUserId) {
         const user = db.users.find(u => u.id === savedUserId);
         if (user) {
             db.currentUser = user;
@@ -225,7 +236,9 @@ const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
 // ==========================================
 // NAVIGATION
 // ==========================================
-function hideAllPages() { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); }
+function hideAllPages() { 
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
+}
 
 function showPage(pageId) {
     const targetId = pageId.startsWith('page-') ? pageId : 'page-' + pageId;
@@ -237,12 +250,7 @@ function showPage(pageId) {
 function switchToAdminView() {
     document.getElementById('client-view').classList.add('hidden');
     document.getElementById('admin-view').classList.remove('hidden');
-
-    const avatar = document.getElementById('admin-avatar');
-    if (avatar && db.settings.profileImg) {
-        avatar.src = db.settings.profileImg;
-    }
-
+    updateManuProfilePhoto();
     renderAdminDashboard();
     showAdminSection('clients');
 }
@@ -275,7 +283,10 @@ function handleLoginStep1() {
         return;
     }
 
-    supabaseLogin(email).then(user => {
+    // Recarrega dados para garantir
+    loadAllData().then(() => {
+        return supabaseLogin(email);
+    }).then(user => {
         if (user.email === ADMIN_EMAIL) {
             db.isAdmin = true;
             saveSession();
@@ -359,6 +370,10 @@ function goToLogin() {
 }
 
 function goToHome() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
     renderServices();
     updateCartFab();
     showPage('page-home');
@@ -369,18 +384,23 @@ function goBackFromPayment() {
 }
 
 function goToMyAppointments() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
     renderMyAppointments();
     showPage('page-my-appointments');
 }
 
 function updateManuProfilePhoto() {
     const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
-    const mainPic = document.getElementById('main-profile-pic');
-    if (mainPic) mainPic.src = src;
-    const heroPic = document.getElementById('home-profile-pic');
-    if (heroPic) heroPic.src = src;
-    const avatar = document.getElementById('admin-avatar');
-    if (avatar) avatar.src = src;
+    
+    // Atualiza todas as fotos de perfil
+    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo'];
+    pics.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.src = src;
+    });
 }
 
 // ==========================================
@@ -391,6 +411,11 @@ function renderServices() {
     if (!container) return;
     container.innerHTML = '';
 
+    if (!db.services || db.services.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum serviço disponível.</p>';
+        return;
+    }
+
     db.services.forEach(s => {
         const isInCart = cart.some(item => item.id === s.id);
         const imgSrc = s.image_url || s.img || '';
@@ -400,7 +425,7 @@ function renderServices() {
         card.className = 'group bg-white rounded-xl overflow-hidden shadow-sm transition-all active:scale-[0.98] border border-gray-100';
         card.innerHTML = `
             <div class="aspect-[16/10] overflow-hidden bg-gray-50">
-                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/400x300?text=Serviço'">
             </div>
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
@@ -417,6 +442,12 @@ function renderServices() {
 }
 
 function toggleCart(id) {
+    if (!db.currentUser) {
+        showToast("Faça login para agendar.");
+        showPage('page-login');
+        return;
+    }
+    
     const service = db.services.find(s => s.id == id);
     if (!service) return;
     
@@ -445,13 +476,21 @@ function updateCartFab() {
 // BOOKING
 // ==========================================
 function proceedToBooking() {
-    if (cart.length === 0) return alert("Adicione serviços.");
+    if (cart.length === 0) {
+        showToast("Adicione serviços.");
+        return;
+    }
+
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
 
     const alertContainer = document.getElementById('alert-blocked-container');
     const mainContent = document.querySelector('#page-booking main');
     const bottomBtn = document.getElementById('btn-continue-booking');
 
-    if (db.currentUser && db.currentUser.status === 'pendente') {
+    if (db.currentUser.status === 'pendente') {
         if (alertContainer) { alertContainer.classList.remove('hidden'); alertContainer.classList.add('flex'); }
         if (mainContent) mainContent.classList.add('opacity-30', 'pointer-events-none');
         if (bottomBtn) bottomBtn.classList.add('hidden');
@@ -602,6 +641,11 @@ function goToPayment() {
         return;
     }
 
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+
     const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
 
     const serviceNames = cart.map(s => s.name).join(', ');
@@ -688,6 +732,11 @@ async function confirmBooking() {
         return;
     }
 
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+
     let paymentDate = null;
     if (selectedPaymentMethod === 'scheduled') {
         paymentDate = document.getElementById('input-pay-date').value;
@@ -715,18 +764,13 @@ async function confirmBooking() {
         });
 
         const servicesNames = cart.map(s => s.name);
-        const finalPrice = totalPrice;
-        const finalDate = selectedDate;
-        const finalTime = selectedTime;
-        const finalMethod = selectedPaymentMethod;
-        
         cart = [];
         renderSuccess({
             services: servicesNames,
-            price: finalPrice,
-            date: finalDate,
-            time: finalTime,
-            paymentMethod: finalMethod
+            price: totalPrice,
+            date: selectedDate,
+            time: selectedTime,
+            paymentMethod: selectedPaymentMethod
         });
         showPage('page-success');
         showToast('Agendamento realizado!');
@@ -772,7 +816,7 @@ async function renderMyAppointments() {
     }
 
     try {
-        const { data, error } = await supabase
+        const { data, error } = await window.supabase
             .from('appointments')
             .select('*')
             .eq('user_id', db.currentUser.id)
@@ -831,7 +875,7 @@ function showAdminSection(section) {
     const el = document.getElementById(`adm-${section}`);
     if (el) el.classList.remove('hidden');
 
-    const titles = { clients: 'Gestão de Clientes', schedule: 'Configuração de Agenda', portfolio: 'Gestão de Serviços', settings: 'Configurações' };
+    const titles = { clients: 'Gestão de Clientes', schedule: 'Agenda', portfolio: 'Serviços', settings: 'Configurações' };
     const titleEl = document.getElementById('admin-page-title');
     if (titleEl) titleEl.textContent = titles[section] || 'Admin';
 
@@ -847,7 +891,7 @@ function showAdminSection(section) {
     }
 
     if (section === 'clients') renderAdminClients();
-    else if (section === 'schedule') renderAdminSchedule();
+    else if (section === 'schedule') { renderAdminSchedule(); renderAdminAppointments(); }
     else if (section === 'portfolio') renderServicesGridAdmin();
     else if (section === 'settings') renderAdminSettings();
 }
@@ -878,7 +922,7 @@ async function renderAdminDashboard() {
 async function renderAdminClients() {
     const tbody = document.getElementById('clients-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8">Carregando...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
 
     try {
         const { data, error } = await window.supabase.from('users').select('*').order('created_at', { ascending: false });
@@ -889,6 +933,7 @@ async function renderAdminClients() {
         for (const u of (data || [])) {
             const { data: appointments } = await window.supabase.from('appointments').select('*').eq('user_id', u.id);
             const lastApp = appointments?.sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))[0];
+            const totalAppts = appointments?.length || 0;
 
             const statusClass = u.status === 'pendente' ? 'text-error' : 'text-emerald-600';
             const statusDotClass = u.status === 'pendente' ? 'bg-error' : 'bg-emerald-500';
@@ -907,6 +952,9 @@ async function renderAdminClients() {
                     </div>
                 </td>
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <span class="text-stone-500 font-medium">${totalAppts}</span>
+                </td>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
                     <select onchange="updateUserType('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
                         <option value="Novo" ${u.type === 'Novo' ? 'selected' : ''}>Novo</option>
                         <option value="Recorrente" ${u.type === 'Recorrente' ? 'selected' : ''}>Recorrente</option>
@@ -919,20 +967,21 @@ async function renderAdminClients() {
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
                     <div class="flex items-center gap-2 ${statusClass} font-bold text-xs">
                         <span class="w-2 h-2 rounded-full ${statusDotClass}"></span>
-                        ${u.status === 'pendente' ? 'Pendente' : 'Realizado'}
+                        ${u.status === 'pendente' ? 'Pendente' : 'OK'}
                     </div>
                 </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5 text-right">
-                    <select onchange="updateUserStatus('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
-                        <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>Realizado</option>
+                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                    <select onchange="updateUserStatus('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer mb-1">
+                        <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>OK</option>
                         <option value="pendente" ${u.status === 'pendente' ? 'selected' : ''}>Pendente</option>
                     </select>
+                    <button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700 text-xs underline">Excluir</button>
                 </td>`;
             tbody.appendChild(tr);
         }
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-400">Erro ao carregar clientes</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar clientes</td></tr>';
     }
 }
 
@@ -954,10 +1003,94 @@ async function updateUserType(userId, newType) {
     }
 }
 
+async function deleteUser(userId) {
+    if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
+    try {
+        await window.supabase.from('users').delete().eq('id', userId);
+        db.users = db.users.filter(u => u.id !== userId);
+        renderAdminClients();
+        showToast('Cliente excluído.');
+    } catch (error) {
+        showToast('Erro ao excluir cliente.');
+    }
+}
+
 // ==========================================
-// ADMIN SCHEDULE
+// ADMIN SCHEDULE / APPOINTMENTS
 // ==========================================
-async function renderAdminSchedule() {
+async function renderAdminAppointments() {
+    const tbody = document.getElementById('appointments-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
+
+    try {
+        const { data: appointments } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
+        const { data: users } = await window.supabase.from('users').select('*');
+
+        if (!appointments || appointments.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhum agendamento encontrado.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        for (const app of appointments) {
+            const user = users?.find(u => u.id === app.user_id);
+            const statusColors = {
+                'Confirmado': 'bg-emerald-100 text-emerald-700',
+                'Pendente': 'bg-amber-100 text-amber-700',
+                'Concluído': 'bg-gray-100 text-gray-600',
+                'Cancelado': 'bg-red-100 text-red-600'
+            };
+            const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
+
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-[#f7f3f2]/50 transition-colors";
+            tr.innerHTML = `
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                    <span class="font-medium text-[#1c1b1b]">${user?.name || 'Cliente'}</span>
+                    <div class="text-xs text-stone-400">${user?.email || '-'}</div>
+                </td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${app.services_names}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatDate(app.appointment_date)}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${app.appointment_time}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                    <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${app.status}</span>
+                </td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                    <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
+                        <option value="Confirmado" ${app.status === 'Confirmado' ? 'selected' : ''}>Confirmado</option>
+                        <option value="Concluído" ${app.status === 'Concluído' ? 'selected' : ''}>Concluído</option>
+                        <option value="Cancelado" ${app.status === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                    </select>
+                </td>`;
+            tbody.appendChild(tr);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar agendamentos:', error);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar</td></tr>';
+    }
+}
+
+async function updateAppointmentStatus(appointmentId, newStatus) {
+    try {
+        await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
+        showToast('Status atualizado!');
+    } catch (error) {
+        showToast('Erro ao atualizar.');
+    }
+}
+
+function searchAppointments() {
+    const searchTerm = document.getElementById('search-appointments')?.value.toLowerCase() || '';
+    const rows = document.querySelectorAll('#appointments-table-body tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+}
+
+function renderAdminSchedule() {
     if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
     const startInput = document.getElementById('config-start-time');
@@ -1029,7 +1162,7 @@ function renderServicesGridAdmin() {
 
         card.innerHTML = `
             <div class="aspect-square w-full overflow-hidden bg-[#ebe7e7] relative">
-                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" onerror="this.src='https://via.placeholder.com/400x400?text=Serviço'">
             </div>
             <div class="p-6 flex-1 flex flex-col">
                 <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${s.name}</h3>
@@ -1173,8 +1306,6 @@ function handleProfileImageUpload(input) {
             supabaseSaveSettings('profileImg', e.target.result).then(() => {
                 renderAdminSettings();
                 updateManuProfilePhoto();
-                const avatar = document.getElementById('admin-avatar');
-                if (avatar) avatar.src = e.target.result;
                 showToast('Foto atualizada!');
             });
         };
@@ -1215,13 +1346,15 @@ function logout() {
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     await initSupabase();
-    updateManuProfilePhoto();
     hideAllPages();
 
-    if (!checkAutoLogin()) {
-        const loginPage = document.getElementById('page-login');
-        if (loginPage) loginPage.classList.add('active');
-    }
+    // Pequeno delay para garantir que DB carregou
+    setTimeout(() => {
+        if (!checkAutoLogin()) {
+            const loginPage = document.getElementById('page-login');
+            if (loginPage) loginPage.classList.add('active');
+        }
+    }, 500);
 });
 
 // ==========================================

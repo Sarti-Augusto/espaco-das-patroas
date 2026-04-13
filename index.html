@@ -506,10 +506,11 @@
                             <thead>
                                 <tr class="border-b border-[#d4c4b7]/10">
                                     <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Cliente</th>
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Atendimentos</th>
                                     <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Tipo</th>
                                     <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Último Serviço</th>
                                     <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Status</th>
-                                    <th class="px-8 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-stone-400">Ação</th>
+                                    <th class="px-8 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="clients-table-body"></tbody>
@@ -537,13 +538,40 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8 mb-8">
                     <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-6">Datas bloqueadas</h3>
                     <div class="flex gap-4 mb-6">
                         <input id="input-block-date" type="date" class="flex-1 bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
                         <button onclick="addBlockedDate()" class="px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Bloquear Data</button>
                     </div>
                     <ul id="blocked-dates-list" class="space-y-2"></ul>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-headline font-bold text-xl text-[#1c1b1b]">Lista de Agendamentos</h3>
+                    </div>
+                    <div class="mb-6">
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 material-symbols-outlined">search</span>
+                            <input id="search-appointments" oninput="searchAppointments()" type="text" placeholder="Buscar por cliente, serviço ou data..." class="w-full bg-[#f7f3f2] border-none rounded-xl pl-12 pr-4 py-3 text-[#1c1b1b] placeholder-stone-400"/>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-[#d4c4b7]/10">
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Cliente</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Serviço</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Data</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Horário</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Status</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-stone-400">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="appointments-table-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 

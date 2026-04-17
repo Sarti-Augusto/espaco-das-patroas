@@ -622,7 +622,7 @@ function initCalendar() {
 
     for (let i = 0; i < startDayOfWeek; i++) {
         const empty = document.createElement('div');
-        empty.className = 'flex-shrink-0 w-16 h-20';
+        empty.className = 'flex-shrink-0 w-16 h-20 snap-center';
         container.appendChild(empty);
     }
 
@@ -632,7 +632,7 @@ function initCalendar() {
 
         if (currentDate < today) {
             const empty = document.createElement('div');
-            empty.className = 'flex-shrink-0 w-16 h-20 flex items-center justify-center';
+            empty.className = 'flex-shrink-0 w-16 h-20 flex items-center justify-center snap-center';
             empty.innerHTML = `<span class="text-lg font-bold text-gray-200">${day}</span>`;
             container.appendChild(empty);
             continue;
@@ -647,7 +647,7 @@ function initCalendar() {
         const isAvailableDay = db.scheduleConfig.availableDays.includes(dayOfWeek);
 
         const pill = document.createElement('div');
-        pill.className = `flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-xl border transition-all cursor-pointer ${
+        pill.className = `flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-xl border transition-all duration-150 active:scale-95 snap-center cursor-pointer ${
             isBlocked || !isAvailableDay ? 'bg-gray-100 text-gray-300 border-transparent cursor-not-allowed' : 'bg-white border-gray-200 hover:border-[#7f5353]'
         }`;
         pill.innerHTML = `<span class="text-[10px] font-bold uppercase">${dayAbbrev}</span><span class="text-lg font-bold">${dayNum}</span>`;
@@ -703,7 +703,7 @@ function populateTimes() {
         const isBooked = dayAppointments.some(a => a.appointment_time === timeStr);
 
         const btn = document.createElement('button');
-        btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-colors ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
+        btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
         btn.textContent = isBooked ? `${timeStr} (ocupado)` : timeStr;
         if (!isBooked) {
             btn.onclick = () => selectTime(timeStr, btn);
@@ -983,8 +983,8 @@ function showAdminSection(section) {
         currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
     }
 
-    if (section === 'clients') renderAdminClients();
-    else if (section === 'schedule') { renderAdminSchedule(); renderAdminAppointments(); }
+    if (section === 'clients') { renderAdminDashboard(); renderAdminClients(); }
+    else if (section === 'schedule') { renderAdminSchedule(); renderAdminAppointments(); renderNextAppointmentCard(); }
     else if (section === 'portfolio') renderServicesGridAdmin();
     else if (section === 'settings') renderAdminSettings();
 }
@@ -993,19 +993,33 @@ function showAdminSection(section) {
 // ADMIN DASHBOARD
 // ==========================================
 async function renderAdminDashboard() {
-    try {
-        const { data: appointments } = await window.supabase.from('appointments').select('*');
-        const { data: users } = await window.supabase.from('users').select('*');
+    await loadAllData(); // Recarrega do Supabase antes de exibir
+    const concluidos = db.appointmentsCache.filter(a => a.status !== 'Cancelado').length;
+    const recorrentes = db.users.filter(u => db.appointmentsCache.filter(a => a.user_id === u.id).length > 1).length;
+    const taxaRetorno = db.users.length > 0 ? Math.round((recorrentes / db.users.length) * 100) : 0;
 
-        const totalAppts = appointments?.length || 0;
-        const totalUsers = users?.length || 0;
-        const returningUsers = users?.filter(u => u.type === 'Recorrente').length || 0;
-        const returnRate = totalUsers > 0 ? Math.round((returningUsers / totalUsers) * 100) : 0;
+    document.getElementById('stat-total').textContent = concluidos;
+    document.getElementById('stat-return').textContent = taxaRetorno + '%';
+    renderNextAppointmentCard();
+}
 
-        document.getElementById('stat-total').textContent = totalAppts;
-        document.getElementById('stat-return').textContent = returnRate + '%';
-    } catch (error) {
-        console.error('Erro ao carregar dashboard:', error);
+async function renderNextAppointmentCard() {
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const { data: proximos } = await window.supabase.from('appointments')
+        .select('*, users(name)')
+        .eq('status', 'Confirmado')
+        .gte('appointment_date', hojeStr)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true })
+        .limit(1);
+
+    const infoEl = document.getElementById('next-appointment-info');
+    if (proximos && proximos.length > 0) {
+        const app = proximos[0];
+        infoEl.textContent = `${app.appointment_time} - ${app.users?.name || 'Cliente'}`;
+        document.getElementById('next-appointment-service').textContent = app.services_names;
+    } else {
+        infoEl.textContent = 'Nenhum agendamento hoje';
     }
 }
 
@@ -1546,13 +1560,48 @@ function renderAgendaCalendar() {
     }
 }
 
-function showNextAppointmentDetails() {
+async function renderNextAppointmentCard() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Popula cache se vazio
+    if (!allAppointmentsCache || allAppointmentsCache.length === 0) {
+        await loadAppointmentsForCalendar();
+    }
+
     const next = allAppointmentsCache
-        .filter(a => a.appointment_date >= new Date().toISOString().split('T')[0] && a.status === 'Confirmado')
+        .filter(a => a.appointment_date >= todayStr && (a.status === 'Confirmado' || a.status === 'Pendente'))
         .sort((a, b) => new Date(a.appointment_date + ' ' + a.appointment_time) - new Date(b.appointment_date + ' ' + b.appointment_time))[0];
-    
+
+    const infoEl = document.getElementById('next-appointment-info');
+    const serviceEl = document.getElementById('next-appointment-service');
+    const todayCountEl = document.getElementById('stat-today-count');
+
     if (next) {
-        showToast(`Próximo: ${next.appointment_time} - ${next.services_names}`);
+        if (infoEl) infoEl.textContent = `${next.appointment_time} - ${next.services_names}`;
+        if (serviceEl) serviceEl.textContent = formatDate(next.appointment_date);
+    } else {
+        if (infoEl) infoEl.textContent = 'Nenhum agendamento';
+        if (serviceEl) serviceEl.textContent = '';
+    }
+
+    // Conta agendamentos de hoje
+    if (todayCountEl) {
+        const todayCount = allAppointmentsCache.filter(a => a.appointment_date === todayStr).length;
+        todayCountEl.textContent = todayCount;
+    }
+}
+
+function showNextAppointmentDetails() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    const next = allAppointmentsCache
+        .filter(a => a.appointment_date >= todayStr && (a.status === 'Confirmado' || a.status === 'Pendente'))
+        .sort((a, b) => new Date(a.appointment_date + ' ' + a.appointment_time) - new Date(b.appointment_date + ' ' + b.appointment_time))[0];
+
+    if (next) {
+        showToast(`Próximo: ${next.appointment_time} - ${next.services_names} (${formatDate(next.appointment_date)})`);
     } else {
         showToast('Nenhum agendamento próximo.');
     }
@@ -1578,22 +1627,44 @@ function removeBlockedDate(date) {
     });
 }
 
+// Expor funções para onclick do HTML
+window.addBlockedDate = addBlockedDate;
+window.removeBlockedDate = removeBlockedDate;
+
 async function saveScheduleSettings() {
-    const startInput = document.getElementById('config-start-time');
-    const endInput = document.getElementById('config-end-time');
-    const slotInput = document.getElementById('config-slot-duration');
-
-    db.scheduleConfig.start = startInput?.value || "09:00";
-    db.scheduleConfig.end = endInput?.value || "18:00";
-    db.scheduleConfig.slotDuration = parseInt(slotInput?.value) || 3;
-
     try {
-        await supabaseSaveScheduleConfig(db.scheduleConfig);
-        showToast("Agenda salva!");
+        const updates = {
+            start_time: document.getElementById('config-start-time').value,
+            end_time: document.getElementById('config-end-time').value,
+            slot_duration: parseInt(document.getElementById('config-slot-duration').value) || 3,
+            available_days: db.scheduleConfig.availableDays || [1, 2, 3, 4, 5],
+            blocked_dates: db.scheduleConfig.blockedDates || []
+        };
+
+        // 1. Busca a linha existente para descobrir o ID real do banco
+        const { data: existingData, error: fetchError } = await window.supabase.from('schedule_config').select('id').limit(1);
+        if (fetchError) throw fetchError;
+
+        // 2. Atualiza usando o ID real, ou insere se a tabela for virgem
+        if (existingData && existingData.length > 0) {
+            const { error } = await window.supabase.from('schedule_config').update(updates).eq('id', existingData[0].id);
+            if (error) throw error;
+        } else {
+            const { error } = await window.supabase.from('schedule_config').insert([updates]);
+            if (error) throw error;
+        }
+
+        db.scheduleConfig = { ...db.scheduleConfig, ...updates };
+        showToast('Agenda atualizada com sucesso!');
+        renderAdminSchedule();
     } catch (error) {
-        showToast('Erro ao salvar.');
+        console.error('Erro fatal ao salvar agenda:', error);
+        showToast('Erro ao salvar no banco. Verifique as permissões.');
     }
 }
+
+// Expor função globalmente para o onclick do HTML
+window.saveScheduleSettings = saveScheduleSettings;
 
 // ==========================================
 // ADMIN SERVICES

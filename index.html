@@ -93,7 +93,7 @@
 
                 <div class="mt-8 mb-6">
                     <h2 class="font-headline font-extrabold text-2xl text-[#7f5353] tracking-tight">Serviços</h2>
-                    <p class="text-sm text-stone-500 mt-1">Escolha o que combination com você</p>
+                    <p class="text-sm text-stone-500 mt-1">Escolha o que combina com você</p>
                 </div>
 
                 <div id="services-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -615,8 +615,21 @@
                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Intervalo (horas)</label>
                                     <input id="config-slot-duration" type="number" min="1" max="8" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="3"/>
                                 </div>
+                                
+                                <div class="md:col-span-3 mt-4">
+                                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Dias de Funcionamento</label>
+                                    <div class="flex flex-wrap gap-4">
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="0" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Dom</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="1" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Seg</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="2" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Ter</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="3" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Qua</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="4" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Qui</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="5" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Sex</label>
+                                        <label class="flex items-center gap-2 text-sm text-[#50453b] cursor-pointer"><input type="checkbox" value="6" class="day-checkbox rounded text-[#7f5353] focus:ring-[#7f5353]"> Sáb</label>
+                                    </div>
+                                </div>
                             </div>
-                            <button onclick="saveScheduleSettings()" class="mt-4 px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Salvar Configurações</button>
+                            <button onclick="saveScheduleSettings()" class="mt-6 px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Salvar Configurações</button>
                         </div>
 
                         <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-6">

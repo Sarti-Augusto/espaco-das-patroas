@@ -615,6 +615,8 @@ function initCalendar() {
     if (monthLabel) monthLabel.textContent = `${monthNames[displayDate.getMonth()]} ${displayDate.getFullYear()}`;
     container.innerHTML = '';
 
+    container.classList.add('snap-x', 'snap-mandatory', 'scroll-smooth');
+
     const firstDay = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1);
     const lastDay = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0);
     const daysInMonth = lastDay.getDate();
@@ -1236,6 +1238,11 @@ function renderAdminSchedule() {
     if (endInput) endInput.value = db.scheduleConfig.end;
     if (slotInput) slotInput.value = db.scheduleConfig.slotDuration || 3;
 
+    // NOVO: Marca os checkboxes de acordo com o que veio do banco
+    document.querySelectorAll('.day-checkbox').forEach(cb => {
+        cb.checked = db.scheduleConfig.availableDays.includes(parseInt(cb.value));
+    });
+
     const list = document.getElementById('blocked-dates-list');
     if (list) {
         list.innerHTML = '';
@@ -1633,11 +1640,16 @@ window.removeBlockedDate = removeBlockedDate;
 
 async function saveScheduleSettings() {
     try {
+        // NOVO: Captura quais dias da semana estão marcados no painel
+        const checkboxes = document.querySelectorAll('.day-checkbox:checked');
+        const selectedDays = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
         const updates = {
             start_time: document.getElementById('config-start-time').value,
             end_time: document.getElementById('config-end-time').value,
             slot_duration: parseInt(document.getElementById('config-slot-duration').value) || 3,
-            available_days: db.scheduleConfig.availableDays || [1, 2, 3, 4, 5],
+            // Se nenhum for marcado, previne erros mantendo de seg a sex
+            available_days: selectedDays.length > 0 ? selectedDays : [1, 2, 3, 4, 5], 
             blocked_dates: db.scheduleConfig.blockedDates || []
         };
 

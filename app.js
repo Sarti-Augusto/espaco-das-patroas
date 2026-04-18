@@ -1599,18 +1599,43 @@ async function renderNextAppointmentCard() {
     }
 }
 
-function showNextAppointmentDetails() {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+async function showNextAppointmentDetails() {
+    const hojeStr = new Date().toISOString().split('T')[0];
 
-    const next = allAppointmentsCache
-        .filter(a => a.appointment_date >= todayStr && (a.status === 'Confirmado' || a.status === 'Pendente'))
-        .sort((a, b) => new Date(a.appointment_date + ' ' + a.appointment_time) - new Date(b.appointment_date + ' ' + b.appointment_time))[0];
+    try {
+        // Busca o próximo agendamento no Supabase e cruza com a tabela de usuários para pegar o nome/telefone
+        const { data: proximos, error } = await window.supabase.from('appointments')
+            .select('*, users(name, phone)')
+            .eq('status', 'Confirmado')
+            .gte('appointment_date', hojeStr)
+            .order('appointment_date', { ascending: true })
+            .order('appointment_time', { ascending: true })
+            .limit(1);
 
-    if (next) {
-        showToast(`Próximo: ${next.appointment_time} - ${next.services_names} (${formatDate(next.appointment_date)})`);
-    } else {
-        showToast('Nenhum agendamento próximo.');
+        if (error) throw error;
+
+        if (proximos && proximos.length > 0) {
+            const app = proximos[0];
+            const clientName = app.users?.name || 'Cliente não identificado';
+            const clientPhone = app.users?.phone || 'Telefone não cadastrado';
+            const dataFormatada = formatDate(app.appointment_date);
+            
+            // Monta uma mensagem detalhada para o alerta
+            const detalhes = `📅 DETALHES DO PRÓXIMO AGENDAMENTO\n\n` +
+                             `👤 Cliente: ${clientName}\n` +
+                             `📱 Telefone: ${clientPhone}\n` +
+                             `💅 Serviço: ${app.services_names}\n` +
+                             `🕒 Data: ${dataFormatada} às ${app.appointment_time}\n` +
+                             `💰 Valor: ${formatCurrency(app.price)}\n` +
+                             `💳 Pagamento: ${app.payment_status}`;
+            
+            alert(detalhes);
+        } else {
+            alert('Não há agendamentos próximos confirmados para exibir.');
+        }
+    } catch (err) {
+        console.error("Erro ao buscar detalhes:", err);
+        showToast("Erro ao buscar os detalhes do agendamento.");
     }
 }
 

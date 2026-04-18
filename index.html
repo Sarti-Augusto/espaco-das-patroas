@@ -316,11 +316,11 @@
                         </div>
                     </label>
 
-                    <label for="payment-scheduled" class="flex flex-col p-5 rounded-xl bg-[#f1edec] border-b-2 border-[#7f5353] cursor-pointer transition-all" onclick="selectPaymentMethod('scheduled')">
-                        <input id="payment-scheduled" class="sr-only" name="payment" type="radio" value="scheduled" onchange="selectPaymentMethod('scheduled')"/>
-                        <div class="flex items-center justify-between">
+                    <label for="payment-scheduled" class="group flex flex-col p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('scheduled')">
+                        <input id="payment-scheduled" class="sr-only peer" name="payment" type="radio" value="scheduled" onchange="selectPaymentMethod('scheduled')"/>
+                        <div class="flex items-center justify-between w-full">
                             <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-full bg-[#7f5353] text-white flex items-center justify-center">
+                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]">
                                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">schedule</span>
                                 </div>
                                 <div>
@@ -328,8 +328,8 @@
                                     <p class="text-xs text-[#50453b]">Agende o débito em até 20 dias</p>
                                 </div>
                             </div>
-                            <div class="w-5 h-5 rounded-full border-2 border-[#7f5353] flex items-center justify-center">
-                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-100"></div>
+                            <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center peer-checked:border-[#7f5353]">
+                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 peer-checked:scale-100 transition-transform"></div>
                             </div>
                         </div>
                     </label>

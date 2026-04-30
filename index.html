@@ -100,18 +100,49 @@
             </main>
 
             <nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md border-t border-[#d4c4b7]/15">
-                <div class="flex justify-around items-center px-4 py-3">
-                    <a onclick="goToHome()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl py-2 px-4 cursor-pointer">
+                <div class="flex justify-between items-center px-6 py-3">
+                    <a onclick="goToHome()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-home">
                         <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
                         <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
                     </a>
-                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
+                    <a onclick="goToGallery()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-gallery">
+                        <span class="material-symbols-outlined">photo_library</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Catálogo</span>
+                    </a>
+                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-appointments">
                         <span class="material-symbols-outlined">calendar_month</span>
                         <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
                     </a>
-                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
-                        <span class="material-symbols-outlined">person</span>
+                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">logout</span>
                         <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    </a>
+                </div>
+            </nav>
+        </section>
+
+        <section id="page-gallery" class="page min-h-screen pb-24">
+            <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6 border-b border-[#d4c4b7]/15">
+                <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Catálogo de Unhas</h1>
+            </header>
+            <main class="pt-20 px-4">
+                <p class="text-sm text-stone-500 mb-6">Inspire-se nos nossos melhores trabalhos e escolha o seu próximo estilo.</p>
+                <div id="client-gallery-grid" class="grid grid-cols-2 gap-3">
+                    </div>
+            </main>
+            <nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md border-t border-[#d4c4b7]/15">
+                <div class="flex justify-between items-center px-6 py-3">
+                    <a onclick="goToHome()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-home-gal">
+                        <span class="material-symbols-outlined">home</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
+                    </a>
+                    <a onclick="goToGallery()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white py-2 px-2 rounded-xl cursor-pointer transition-colors" id="nav-gallery-gal">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">photo_library</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Catálogo</span>
+                    </a>
+                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-appointments-gal">
+                        <span class="material-symbols-outlined">calendar_month</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
+                    </a>
+                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">logout</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
                     </a>
                 </div>
             </nav>
@@ -130,18 +161,18 @@
                 </section>
             </main>
             <nav class="fixed bottom-0 left-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md border-t border-[#d4c4b7]/15">
-                <div class="flex justify-around items-center px-4 py-3">
-                    <a onclick="goToHome()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
-                        <span class="material-symbols-outlined">home</span>
-                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
+                <div class="flex justify-between items-center px-6 py-3">
+                    <a onclick="goToHome()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-home-app">
+                        <span class="material-symbols-outlined">home</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Home</span>
                     </a>
-                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl py-2 px-4 cursor-pointer">
-                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
-                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
+                    <a onclick="goToGallery()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-gallery-app">
+                        <span class="material-symbols-outlined">photo_library</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Catálogo</span>
                     </a>
-                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-4 hover:bg-[#f7f3f2] rounded-xl cursor-pointer">
-                        <span class="material-symbols-outlined">person</span>
-                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white py-2 px-2 rounded-xl cursor-pointer transition-colors" id="nav-appointments-app">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Agendados</span>
+                    </a>
+                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">logout</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
                     </a>
                 </div>
             </nav>
@@ -406,6 +437,10 @@
                     <span class="material-symbols-outlined">content_cut</span>
                     <span>Serviços</span>
                 </a>
+                <a onclick="showAdminSection('gallery')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <span class="material-symbols-outlined">photo_library</span>
+                    <span>Catálogo</span>
+                </a>
                 <a onclick="showAdminSection('settings')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">settings</span>
                     <span>Configurações</span>
@@ -454,6 +489,10 @@
                     <a onclick="showAdminSection('portfolio'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">content_cut</span>
                         <span>Serviços</span>
+                    </a>
+                    <a onclick="showAdminSection('gallery'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                        <span class="material-symbols-outlined">photo_library</span>
+                        <span>Catálogo</span>
                     </a>
                     <a onclick="showAdminSection('settings'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">settings</span>
@@ -685,6 +724,20 @@
                 <div id="services-grid-admin" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </section>
 
+            <section id="adm-gallery" class="adm-section hidden">
+                <div class="flex justify-between items-end mb-8">
+                    <div>
+                        <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Catálogo de Unhas</h2>
+                        <p class="text-stone-500 mt-2">Adicione fotos do seu portfólio para inspirar as clientes</p>
+                    </div>
+                    <button onclick="openAddGalleryModal()" class="px-6 py-3 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md active:scale-95">
+                        <span class="material-symbols-outlined">add_a_photo</span>
+                        ADICIONAR FOTO
+                    </button>
+                </div>
+                <div id="admin-gallery-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+            </section>
+
             <section id="adm-settings" class="adm-section hidden">
                 <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-8">Configurações</h2>
                 <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
@@ -741,6 +794,40 @@
                 </div>
             </div>
             <button onclick="saveService()" class="w-full mt-6 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition-opacity">Salvar</button>
+        </div>
+    </div>
+
+    <div id="gallery-modal" class="modal hidden">
+        <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-headline font-bold text-xl text-[#1c1b1b]">Editar Foto do Catálogo</h3>
+                <button onclick="closeGalleryModal()" class="w-8 h-8 rounded-full bg-[#f7f3f2] flex items-center justify-center text-stone-400 hover:text-[#1c1b1b] transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <input type="hidden" id="gallery-id"/>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Título/Estilo (Ex: Francesinha Almond)</label>
+                    <input id="gallery-title" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Detalhes/Cor</label>
+                    <input id="gallery-desc" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Foto da Unha</label>
+                    <div class="flex flex-col items-center gap-4 bg-[#f7f3f2] p-4 rounded-xl border-2 border-dashed border-[#d4c4b7]">
+                        <img id="gallery-preview-img" src="https://via.placeholder.com/400x400?text=Sua+Foto" alt="Preview" class="w-32 h-32 rounded-xl object-cover shadow-sm">
+                        <label class="cursor-pointer inline-flex items-center gap-2 px-6 py-2 bg-white rounded-xl text-[#7f5353] font-bold text-sm hover:bg-gray-50 transition-colors shadow-sm">
+                            <span class="material-symbols-outlined">upload</span>
+                            Carregar Imagem
+                            <input type="file" class="hidden" accept="image/*" onchange="previewGalleryImage(this)"/>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <button onclick="saveGalleryItem()" class="w-full mt-6 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all">Salvar Foto</button>
         </div>
     </div>
 

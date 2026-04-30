@@ -10,6 +10,7 @@ let db = {
     settings: { profileImg: "" },
     appointmentsCache: [],
     scheduleConfig: { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
+    gallery: [], // Catálogo de unhas
     currentUser: null,
     isAdmin: false
 };
@@ -29,18 +30,21 @@ async function initSupabase() {
 
 async function loadAllData() {
     try {
-        const [usersData, servicesData, settingsData, scheduleData, appointmentsData] = await Promise.all([
+        const [usersData, servicesData, settingsData, scheduleData, appointmentsData, galleryData] = await Promise.all([
             window.supabase.from('users').select('*'),
             window.supabase.from('services').select('*'),
             window.supabase.from('settings').select('*'),
             window.supabase.from('schedule_config').select('*').limit(1),
-            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
+            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false }),
+            window.supabase.from('gallery').select('*').order('created_at', { ascending: false }) // Busca o catálogo
         ]);
 
         db.users = usersData.data || [];
         db.services = (servicesData.data || []).filter(s => s.is_active === true || s.is_active === 'true');
         db.settings = { profileImg: "" };
         db.appointmentsCache = appointmentsData.data || [];
+        db.gallery = (galleryData.data || []).filter(g => g.is_active === true || g.is_active === 'true');
+        
         db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
         if (settingsData.data && settingsData.data.length > 0) {
@@ -220,6 +224,7 @@ function checkAutoLogin() {
             renderServices();
             updateCartFab();
             showPage('page-home');
+            updateBottomNav('home');
             showToast(`Bem-vinda de volta, ${user.name?.split(' ')[0] || ''}!`);
             return true;
         }
@@ -242,7 +247,7 @@ let currentCalendarMonth = new Date();
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
 
 // ==========================================
-// NAVIGATION
+// NAVIGATION E BOTTOM NAV
 // ==========================================
 function hideAllPages() { 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
@@ -253,6 +258,26 @@ function showPage(pageId) {
     hideAllPages();
     const el = document.getElementById(targetId);
     if (el) { el.classList.add('active'); window.scrollTo(0, 0); }
+}
+
+function updateBottomNav(activeTab) {
+    // Reseta todos os botões do menu inferior do cliente
+    const allNavs = document.querySelectorAll('[id^="nav-home"], [id^="nav-gallery"], [id^="nav-appointments"]');
+    allNavs.forEach(el => {
+        el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white');
+        el.classList.add('text-[#7f5353]/60');
+        const icon = el.querySelector('.material-symbols-outlined');
+        if(icon) icon.style.fontVariationSettings = "'FILL' 0";
+    });
+
+    // Ativa apenas a aba clicada
+    const activeNavs = document.querySelectorAll(`[id^="nav-${activeTab}"]`);
+    activeNavs.forEach(el => {
+        el.classList.remove('text-[#7f5353]/60');
+        el.classList.add('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white');
+        const icon = el.querySelector('.material-symbols-outlined');
+        if(icon) icon.style.fontVariationSettings = "'FILL' 1";
+    });
 }
 
 function switchToAdminView() {
@@ -280,10 +305,50 @@ function switchToClientView() {
     showPage('page-login');
 }
 
+function goToHome() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+    cart = [];
+    selectedDate = null;
+    selectedTime = null;
+    selectedPaymentMethod = null;
+    hideAllPages();
+    document.getElementById('page-home').classList.add('active');
+    renderServices();
+    updateCartFab();
+    updateBottomNav('home');
+    window.scrollTo(0, 0);
+}
+
+function goToMyAppointments() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+    renderMyAppointments();
+    showPage('page-my-appointments');
+    updateBottomNav('appointments');
+}
+
+function goToGallery() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+    renderClientGallery();
+    showPage('page-gallery');
+    updateBottomNav('gallery');
+}
+
+function goBackFromPayment() {
+    showPage('page-booking');
+}
+
 // ==========================================
 // LOGIN FLOW
 // ==========================================
-
 function handleLoginStep1() {
     const emailInput = document.getElementById('input-login-email');
     const email = sanitizeString(emailInput.value.trim()).toLowerCase();
@@ -299,10 +364,14 @@ function handleLoginStep1() {
         return;
     }
 
-    // Recarrega dados para garantir
+    const btn = document.getElementById('btn-login-step1');
+    btn.textContent = 'Aguarde...';
+
     loadAllData().then(() => {
         return supabaseLogin(email);
     }).then(user => {
+        btn.textContent = 'Entrar';
+
         if (user.email === ADMIN_EMAIL) {
             db.isAdmin = true;
             saveSession();
@@ -329,8 +398,10 @@ function handleLoginStep1() {
         renderServices();
         updateCartFab();
         showPage('page-home');
+        updateBottomNav('home');
         showToast(`Bem-vinda!`);
     }).catch(error => {
+        btn.textContent = 'Entrar';
         console.error('Erro no login:', error);
         showToast('Erro ao fazer login. Tente novamente.');
     });
@@ -344,7 +415,6 @@ function showLoginStep1(email) {
         document.getElementById('input-login-email').value = email;
     }
     
-    // Verifica se o usuário já existe para definir o texto do botão
     const existingUser = db.users.find(u => u.email === email);
     const btnText = existingUser && existingUser.name ? 'Entrar' : 'Cadastrar';
     document.getElementById('btn-login-step1').textContent = btnText;
@@ -388,6 +458,7 @@ async function handleLogin() {
         renderServices();
         updateCartFab();
         showPage('page-home');
+        updateBottomNav('home');
         showToast(`Bem-vinda, ${name.split(' ')[0]}!`);
     } catch (error) {
         console.error('Erro ao salvar:', error);
@@ -402,39 +473,8 @@ function goToLogin() {
     showPage('page-login');
 }
 
-function goToHome() {
-    if (!db.currentUser) {
-        showPage('page-login');
-        return;
-    }
-    cart = [];
-    selectedDate = null;
-    selectedTime = null;
-    selectedPaymentMethod = null;
-    hideAllPages();
-    document.getElementById('page-home').classList.add('active');
-    renderServices();
-    updateCartFab();
-    window.scrollTo(0, 0);
-}
-
-function goBackFromPayment() {
-    showPage('page-booking');
-}
-
-function goToMyAppointments() {
-    if (!db.currentUser) {
-        showPage('page-login');
-        return;
-    }
-    renderMyAppointments();
-    showPage('page-my-appointments');
-}
-
 function updateManuProfilePhoto() {
     const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
-    
-    // Atualiza todas as fotos de perfil
     const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic'];
     pics.forEach(id => {
         const el = document.getElementById(id);
@@ -520,7 +560,6 @@ function proceedToBooking() {
         return;
     }
 
-    // Se DB ainda não carregou, espera
     if (!isDbLoaded) {
         showToast("Carregando...");
         const checkDb = setInterval(() => {
@@ -532,11 +571,9 @@ function proceedToBooking() {
         return;
     }
 
-    // Se currentUser não está carregado, tenta restaurar
     if (!db.currentUser) {
         const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
         if (savedUserId && db.users.length > 0) {
-            // Usuários já carregados, encontra direto
             const user = db.users.find(u => u.id === savedUserId);
             if (user) {
                 db.currentUser = user;
@@ -545,7 +582,6 @@ function proceedToBooking() {
                 return;
             }
         } else if (savedUserId) {
-            // Usuários ainda não carregados, espera e tenta novamente
             const checkUser = setInterval(() => {
                 if (db.users.length > 0) {
                     clearInterval(checkUser);
@@ -697,7 +733,6 @@ function populateTimes() {
     const end = parseInt(db.scheduleConfig.end.split(':')[0]);
     const slotDuration = db.scheduleConfig.slotDuration || 3;
 
-    // Busca agendamentos do dia para bloquear horários ocupados
     const dayAppointments = db.appointmentsCache?.filter(a => a.appointment_date === selectedDate) || [];
 
     for (let h = start; h < end; h += slotDuration) {
@@ -850,7 +885,6 @@ async function confirmBooking() {
             paymentDate: paymentDate
         });
 
-        // Adiciona ao Google Calendar
         addToGoogleCalendar(newAppointment);
 
         await supabaseUpdateUser(db.currentUser.id, {
@@ -970,7 +1004,7 @@ function showAdminSection(section) {
     const el = document.getElementById(`adm-${section}`);
     if (el) el.classList.remove('hidden');
 
-    const titles = { clients: 'Gestão de Clientes', schedule: 'Agenda', portfolio: 'Serviços', settings: 'Configurações' };
+    const titles = { clients: 'Gestão de Clientes', schedule: 'Agenda', portfolio: 'Serviços', gallery: 'Catálogo', settings: 'Configurações' };
     const titleEl = document.getElementById('admin-page-title');
     if (titleEl) titleEl.textContent = titles[section] || 'Admin';
 
@@ -979,7 +1013,7 @@ function showAdminSection(section) {
         link.classList.add('text-stone-500');
     });
 
-    const currentLink = document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}')"]`);
+    const currentLink = document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}')"]`) || document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}'); toggleAdminMenu();"]`);
     if (currentLink) {
         currentLink.classList.remove('text-stone-500');
         currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
@@ -988,6 +1022,7 @@ function showAdminSection(section) {
     if (section === 'clients') { renderAdminDashboard(); renderAdminClients(); }
     else if (section === 'schedule') { renderAdminSchedule(); renderAdminAppointments(); renderNextAppointmentCard(); }
     else if (section === 'portfolio') renderServicesGridAdmin();
+    else if (section === 'gallery') renderAdminGallery();
     else if (section === 'settings') renderAdminSettings();
 }
 
@@ -995,7 +1030,7 @@ function showAdminSection(section) {
 // ADMIN DASHBOARD
 // ==========================================
 async function renderAdminDashboard() {
-    await loadAllData(); // Recarrega do Supabase antes de exibir
+    await loadAllData();
     const concluidos = db.appointmentsCache.filter(a => a.status !== 'Cancelado').length;
     const recorrentes = db.users.filter(u => db.appointmentsCache.filter(a => a.user_id === u.id).length > 1).length;
     const taxaRetorno = db.users.length > 0 ? Math.round((recorrentes / db.users.length) * 100) : 0;
@@ -1025,6 +1060,44 @@ async function renderNextAppointmentCard() {
     }
 }
 
+async function showNextAppointmentDetails() {
+    const hojeStr = new Date().toISOString().split('T')[0];
+
+    try {
+        const { data: proximos, error } = await window.supabase.from('appointments')
+            .select('*, users(name, phone)')
+            .eq('status', 'Confirmado')
+            .gte('appointment_date', hojeStr)
+            .order('appointment_date', { ascending: true })
+            .order('appointment_time', { ascending: true })
+            .limit(1);
+
+        if (error) throw error;
+
+        if (proximos && proximos.length > 0) {
+            const app = proximos[0];
+            const clientName = app.users?.name || 'Cliente não identificado';
+            const clientPhone = app.users?.phone || 'Telefone não cadastrado';
+            const dataFormatada = formatDate(app.appointment_date);
+            
+            const detalhes = `📅 DETALHES DO PRÓXIMO AGENDAMENTO\n\n` +
+                             `👤 Cliente: ${clientName}\n` +
+                             `📱 Telefone: ${clientPhone}\n` +
+                             `💅 Serviço: ${app.services_names}\n` +
+                             `🕒 Data: ${dataFormatada} às ${app.appointment_time}\n` +
+                             `💰 Valor: ${formatCurrency(app.price)}\n` +
+                             `💳 Pagamento: ${app.payment_status}`;
+            
+            alert(detalhes);
+        } else {
+            alert('Não há agendamentos próximos confirmados para exibir.');
+        }
+    } catch (err) {
+        console.error("Erro ao buscar detalhes:", err);
+        showToast("Erro ao buscar os detalhes do agendamento.");
+    }
+}
+
 // ==========================================
 // ADMIN CLIENTS
 // ==========================================
@@ -1034,7 +1107,6 @@ async function renderAdminClients() {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
 
     try {
-        // Busca todos os usuários e agendamentos em paralelo (evita N+1)
         const [usersResult, appointmentsResult] = await Promise.all([
             window.supabase.from('users').select('*').order('created_at', { ascending: false }),
             window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
@@ -1045,7 +1117,6 @@ async function renderAdminClients() {
         const users = usersResult.data || [];
         const allAppointments = appointmentsResult.data || [];
 
-        // Cruza dados em memória
         const appointmentsByUser = {};
         allAppointments.forEach(app => {
             if (!appointmentsByUser[app.user_id]) {
@@ -1142,7 +1213,7 @@ async function deleteUser(userId) {
 }
 
 // ==========================================
-// ADMIN SCHEDULE / APPOINTMENTS
+// ADMIN SCHEDULE E APPOINTMENTS
 // ==========================================
 async function renderAdminAppointments() {
     const tbody = document.getElementById('appointments-table-body');
@@ -1199,12 +1270,9 @@ async function renderAdminAppointments() {
 
 async function updateAppointmentStatus(appointmentId, newStatus) {
     try {
-        // Busca o agendamento para verificar se é cancelamento
         const appointment = db.appointmentsCache.find(a => a.id === appointmentId);
-        
         await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
 
-        // Atualiza cache local
         const idx = db.appointmentsCache.findIndex(a => a.id === appointmentId);
         if (idx !== -1) db.appointmentsCache[idx].status = newStatus;
 
@@ -1238,7 +1306,6 @@ function renderAdminSchedule() {
     if (endInput) endInput.value = db.scheduleConfig.end;
     if (slotInput) slotInput.value = db.scheduleConfig.slotDuration || 3;
 
-    // NOVO: Marca os checkboxes de acordo com o que veio do banco
     document.querySelectorAll('.day-checkbox').forEach(cb => {
         cb.checked = db.scheduleConfig.availableDays.includes(parseInt(cb.value));
     });
@@ -1254,10 +1321,7 @@ function renderAdminSchedule() {
         });
     }
 
-    // Carrega agendamentos para o cache do calendário
     loadAppointmentsForCalendar();
-
-    // Renderiza o calendário da agenda
     renderAgendaCalendar();
     updateAgendaMonthLabel();
 }
@@ -1267,7 +1331,6 @@ async function loadAppointmentsForCalendar() {
         const { data } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
         allAppointmentsCache = data || [];
     } catch (error) {
-        console.error('Erro ao carregar agendamentos para calendário:', error);
         allAppointmentsCache = [];
     }
 }
@@ -1282,7 +1345,6 @@ function renderAgendaCalendar() {
     const year = displayDate.getFullYear();
     const month = displayDate.getMonth();
 
-    // Preenche select de ano
     const yearSelect = document.getElementById('agenda-year-select');
     if (yearSelect) {
         yearSelect.innerHTML = '';
@@ -1303,17 +1365,14 @@ function renderAgendaCalendar() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Pega agendamentos do mês
     const monthAppointments = getAppointmentsForMonth(year, month);
 
-    // Dias vazios antes do primeiro dia
     for (let i = 0; i < startDayOfWeek; i++) {
         const empty = document.createElement('div');
         empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
         grid.appendChild(empty);
     }
 
-    // Dias do mês
     for (let day = 1; day <= daysInMonth; day++) {
         const currentDate = new Date(year, month, day);
         currentDate.setHours(0, 0, 0, 0);
@@ -1345,7 +1404,6 @@ function renderAgendaCalendar() {
         grid.appendChild(cell);
     }
 
-    // Preenche dias vazios após o último dia
     const totalCells = startDayOfWeek + daysInMonth;
     const remainingCells = 7 - (totalCells % 7);
     if (remainingCells < 7) {
@@ -1397,248 +1455,6 @@ function setAgendaView(view) {
     renderAgendaCalendar();
 }
 
-function renderAgendaCalendar() {
-    const grid = document.getElementById('agenda-calendar-grid');
-    if (!grid) return;
-
-    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    const displayDate = currentAgendaMonth;
-    const year = displayDate.getFullYear();
-    const month = displayDate.getMonth();
-
-    // Preenche select de ano
-    const yearSelect = document.getElementById('agenda-year-select');
-    if (yearSelect) {
-        yearSelect.innerHTML = '';
-        for (let y = year - 2; y <= year + 2; y++) {
-            const opt = document.createElement('option');
-            opt.value = y;
-            opt.textContent = y;
-            if (y === year) opt.selected = true;
-            yearSelect.appendChild(opt);
-        }
-    }
-
-    grid.innerHTML = '';
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (agendaView === 'month') {
-        // Visualização mensal
-        // Header dos dias da semana
-        dayNames.forEach(day => {
-            const header = document.createElement('div');
-            header.className = 'text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase py-2 bg-[#f7f3f2] border-r border-b border-[#d4c4b7]/10';
-            header.textContent = day;
-            grid.appendChild(header);
-        });
-
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startDayOfWeek = firstDay.getDay();
-        const monthAppointments = getAppointmentsForMonth(year, month);
-
-        // Dias vazios antes do primeiro dia
-        for (let i = 0; i < startDayOfWeek; i++) {
-            const empty = document.createElement('div');
-            empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
-            grid.appendChild(empty);
-        }
-
-        // Dias do mês
-        for (let day = 1; day <= daysInMonth; day++) {
-            const currentDate = new Date(year, month, day);
-            currentDate.setHours(0, 0, 0, 0);
-            const dateStr = currentDate.toISOString().split('T')[0];
-            const dayAppointments = monthAppointments.filter(a => a.appointment_date === dateStr);
-            const isToday = currentDate.getTime() === today.getTime();
-            const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
-            const isPast = currentDate < today;
-
-            const cell = document.createElement('div');
-            cell.className = `h-24 border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'} ${isBlocked ? 'opacity-50' : ''} ${isPast ? 'opacity-40' : ''}`;
-
-            let appointmentsHtml = '';
-            dayAppointments.slice(0, 2).forEach(app => {
-                appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${app.appointment_time} - ${app.services_names?.split(',')[0] || 'Serviço'}</div>`;
-            });
-            if (dayAppointments.length > 2) {
-                appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
-            }
-
-            cell.innerHTML = `
-                <div class="flex justify-between items-start mb-1">
-                    <span class="text-xs font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${day}</span>
-                    ${isBlocked ? '<span class="text-[8px] text-red-400">Bloqueado</span>' : ''}
-                </div>
-                <div class="space-y-1">${appointmentsHtml}</div>
-            `;
-
-            grid.appendChild(cell);
-        }
-
-        // Preenche dias vazios após o último dia
-        const totalCells = startDayOfWeek + daysInMonth;
-        const remainingCells = 7 - (totalCells % 7);
-        if (remainingCells < 7 && remainingCells > 0) {
-            for (let i = 0; i < remainingCells; i++) {
-                const empty = document.createElement('div');
-                empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
-                grid.appendChild(empty);
-            }
-        }
-
-    } else if (agendaView === 'week') {
-        // Visualização semanal
-        const startOfWeek = new Date(currentAgendaMonth);
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-        const weekAppointments = allAppointmentsCache.filter(app => {
-            const appDate = new Date(app.appointment_date);
-            return appDate >= startOfWeek && appDate < new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000);
-        });
-
-        for (let i = 0; i < 7; i++) {
-            const dayDate = new Date(startOfWeek.getTime() + i * 24 * 60 * 60 * 1000);
-            dayDate.setHours(0, 0, 0, 0);
-            const dateStr = dayDate.toISOString().split('T')[0];
-            const dayAppointments = weekAppointments.filter(a => a.appointment_date === dateStr);
-            const isToday = dayDate.getTime() === today.getTime();
-
-            const cell = document.createElement('div');
-            cell.className = `min-h-[200px] border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'}`;
-
-            let appointmentsHtml = '';
-            dayAppointments.forEach(app => {
-                appointmentsHtml += `<div class="text-xs bg-primary/10 text-primary rounded px-2 py-1 mb-2">
-                    <span class="font-bold">${app.appointment_time}</span>
-                    <span class="block">${app.services_names}</span>
-                </div>`;
-            });
-
-            cell.innerHTML = `
-                <div class="text-center mb-2 pb-2 border-b border-[#d4c4b7]/10">
-                    <span class="text-[10px] font-bold text-stone-400 uppercase">${dayNames[i]}</span>
-                    <span class="block text-lg font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${dayDate.getDate()}</span>
-                </div>
-                <div class="space-y-1">${appointmentsHtml || '<p class="text-xs text-stone-300">Sem agendamentos</p>'}</div>
-            `;
-
-            grid.appendChild(cell);
-        }
-
-    } else if (agendaView === 'day') {
-        // Visualização diária - mostra os horários do dia selecionado
-        const selectedDate = new Date(currentAgendaMonth);
-        const dateStr = selectedDate.toISOString().split('T')[0];
-        const dayAppointments = allAppointmentsCache.filter(a => a.appointment_date === dateStr);
-        const dayOfWeek = selectedDate.getDay();
-
-        // Célula única para o dia
-        const cell = document.createElement('div');
-        cell.className = 'col-span-7 bg-white p-4 min-h-[400px]';
-        cell.innerHTML = `
-            <div class="text-center mb-6 pb-4 border-b border-[#d4c4b7]/10">
-                <span class="text-[10px] font-bold text-stone-400 uppercase">${dayNames[dayOfWeek]}</span>
-                <span class="block text-4xl font-bold text-primary">${selectedDate.getDate()}</span>
-                <span class="text-sm text-stone-400">${monthNames[month]} ${year}</span>
-            </div>
-            <div class="space-y-2">
-                ${dayAppointments.length > 0 ? dayAppointments.map(app => `
-                    <div class="flex items-center gap-4 p-3 bg-primary/5 rounded-xl border-l-4 border-primary">
-                        <span class="font-bold text-primary">${app.appointment_time}</span>
-                        <div>
-                            <p class="font-bold text-sm">${app.services_names}</p>
-                            <p class="text-xs text-stone-500">${app.payment_status || 'Pendente'}</p>
-                        </div>
-                    </div>
-                `).join('') : '<p class="text-center text-stone-300 py-8">Sem agendamentos neste dia</p>'}
-            </div>
-        `;
-        grid.appendChild(cell);
-    }
-
-    // Atualiza label do mês
-    const label = document.getElementById('agenda-month-label');
-    if (label) {
-        label.textContent = `${monthNames[currentAgendaMonth.getMonth()]}, ${currentAgendaMonth.getFullYear()}`;
-    }
-}
-
-async function renderNextAppointmentCard() {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
-    // Popula cache se vazio
-    if (!allAppointmentsCache || allAppointmentsCache.length === 0) {
-        await loadAppointmentsForCalendar();
-    }
-
-    const next = allAppointmentsCache
-        .filter(a => a.appointment_date >= todayStr && (a.status === 'Confirmado' || a.status === 'Pendente'))
-        .sort((a, b) => new Date(a.appointment_date + ' ' + a.appointment_time) - new Date(b.appointment_date + ' ' + b.appointment_time))[0];
-
-    const infoEl = document.getElementById('next-appointment-info');
-    const serviceEl = document.getElementById('next-appointment-service');
-    const todayCountEl = document.getElementById('stat-today-count');
-
-    if (next) {
-        if (infoEl) infoEl.textContent = `${next.appointment_time} - ${next.services_names}`;
-        if (serviceEl) serviceEl.textContent = formatDate(next.appointment_date);
-    } else {
-        if (infoEl) infoEl.textContent = 'Nenhum agendamento';
-        if (serviceEl) serviceEl.textContent = '';
-    }
-
-    // Conta agendamentos de hoje
-    if (todayCountEl) {
-        const todayCount = allAppointmentsCache.filter(a => a.appointment_date === todayStr).length;
-        todayCountEl.textContent = todayCount;
-    }
-}
-
-async function showNextAppointmentDetails() {
-    const hojeStr = new Date().toISOString().split('T')[0];
-
-    try {
-        // Busca o próximo agendamento no Supabase e cruza com a tabela de usuários para pegar o nome/telefone
-        const { data: proximos, error } = await window.supabase.from('appointments')
-            .select('*, users(name, phone)')
-            .eq('status', 'Confirmado')
-            .gte('appointment_date', hojeStr)
-            .order('appointment_date', { ascending: true })
-            .order('appointment_time', { ascending: true })
-            .limit(1);
-
-        if (error) throw error;
-
-        if (proximos && proximos.length > 0) {
-            const app = proximos[0];
-            const clientName = app.users?.name || 'Cliente não identificado';
-            const clientPhone = app.users?.phone || 'Telefone não cadastrado';
-            const dataFormatada = formatDate(app.appointment_date);
-            
-            // Monta uma mensagem detalhada para o alerta
-            const detalhes = `📅 DETALHES DO PRÓXIMO AGENDAMENTO\n\n` +
-                             `👤 Cliente: ${clientName}\n` +
-                             `📱 Telefone: ${clientPhone}\n` +
-                             `💅 Serviço: ${app.services_names}\n` +
-                             `🕒 Data: ${dataFormatada} às ${app.appointment_time}\n` +
-                             `💰 Valor: ${formatCurrency(app.price)}\n` +
-                             `💳 Pagamento: ${app.payment_status}`;
-            
-            alert(detalhes);
-        } else {
-            alert('Não há agendamentos próximos confirmados para exibir.');
-        }
-    } catch (err) {
-        console.error("Erro ao buscar detalhes:", err);
-        showToast("Erro ao buscar os detalhes do agendamento.");
-    }
-}
-
 function addBlockedDate() {
     const val = document.getElementById('input-block-date').value;
     if (!val) return;
@@ -1659,13 +1475,11 @@ function removeBlockedDate(date) {
     });
 }
 
-// Expor funções para onclick do HTML
 window.addBlockedDate = addBlockedDate;
 window.removeBlockedDate = removeBlockedDate;
 
 async function saveScheduleSettings() {
     try {
-        // NOVO: Captura quais dias da semana estão marcados no painel
         const checkboxes = document.querySelectorAll('.day-checkbox:checked');
         const selectedDays = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
@@ -1673,16 +1487,13 @@ async function saveScheduleSettings() {
             start_time: document.getElementById('config-start-time').value,
             end_time: document.getElementById('config-end-time').value,
             slot_duration: parseInt(document.getElementById('config-slot-duration').value) || 3,
-            // Se nenhum for marcado, previne erros mantendo de seg a sex
             available_days: selectedDays.length > 0 ? selectedDays : [1, 2, 3, 4, 5], 
             blocked_dates: db.scheduleConfig.blockedDates || []
         };
 
-        // 1. Busca a linha existente para descobrir o ID real do banco
         const { data: existingData, error: fetchError } = await window.supabase.from('schedule_config').select('id').limit(1);
         if (fetchError) throw fetchError;
 
-        // 2. Atualiza usando o ID real, ou insere se a tabela for virgem
         if (existingData && existingData.length > 0) {
             const { error } = await window.supabase.from('schedule_config').update(updates).eq('id', existingData[0].id);
             if (error) throw error;
@@ -1695,12 +1506,10 @@ async function saveScheduleSettings() {
         showToast('Agenda atualizada com sucesso!');
         renderAdminSchedule();
     } catch (error) {
-        console.error('Erro fatal ao salvar agenda:', error);
-        showToast('Erro ao salvar no banco. Verifique as permissões.');
+        showToast('Erro ao salvar no banco.');
     }
 }
 
-// Expor função globalmente para o onclick do HTML
 window.saveScheduleSettings = saveScheduleSettings;
 
 // ==========================================
@@ -1868,6 +1677,138 @@ function handleProfileImageUpload(input) {
             });
         };
         reader.readAsDataURL(file);
+    }
+}
+
+// ==========================================
+// GALLERY / PORTFOLIO (CLIENT & ADMIN)
+// ==========================================
+
+function renderClientGallery() {
+    const container = document.getElementById('client-gallery-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!db.gallery || db.gallery.length === 0) {
+        container.innerHTML = '<p class="text-center text-stone-400 col-span-2 py-10">O catálogo está sendo atualizado com novas fotos. Volte em breve!</p>';
+        return;
+    }
+
+    db.gallery.forEach(g => {
+        const imgSrc = g.image_url || 'https://via.placeholder.com/400x500?text=Foto';
+        const card = document.createElement('div');
+        card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5]';
+        card.innerHTML = `
+            <img src="${imgSrc}" class="w-full h-full object-cover" alt="${g.title}">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">
+                <h4 class="text-white font-bold text-xs shadow-black">${g.title || 'Inspiração'}</h4>
+                <p class="text-white/80 text-[10px] truncate">${g.description || ''}</p>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderAdminGallery() {
+    const container = document.getElementById('admin-gallery-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    db.gallery.forEach(g => {
+        const imgSrc = g.image_url || 'https://via.placeholder.com/400x400?text=Foto';
+        const card = document.createElement('div');
+        card.className = 'bg-[#f1edec] rounded-2xl overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col relative';
+        card.innerHTML = `
+            <div class="aspect-square w-full overflow-hidden">
+                <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+            </div>
+            <div class="p-4 bg-white flex justify-between items-center border-t border-[#d4c4b7]/20">
+                <div class="overflow-hidden">
+                    <h3 class="font-bold text-sm text-[#1c1b1b] truncate">${g.title || 'Sem título'}</h3>
+                    <p class="text-[10px] text-stone-500 truncate">${g.description || ''}</p>
+                </div>
+                <div class="flex gap-1 ml-2">
+                    <button onclick="openEditGalleryModal('${g.id}')" class="p-1.5 text-stone-400 hover:text-primary transition-colors bg-[#f7f3f2] rounded-lg">
+                        <span class="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button onclick="confirmDeleteGalleryItem('${g.id}')" class="p-1.5 text-stone-400 hover:text-red-500 transition-colors bg-[#f7f3f2] rounded-lg">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                </div>
+            </div>`;
+        container.appendChild(card);
+    });
+}
+
+function openAddGalleryModal() {
+    document.getElementById('gallery-id').value = '';
+    document.getElementById('gallery-title').value = '';
+    document.getElementById('gallery-desc').value = '';
+    document.getElementById('gallery-preview-img').src = 'https://via.placeholder.com/400x400?text=Sua+Foto';
+    document.getElementById('gallery-modal').classList.remove('hidden');
+    document.getElementById('gallery-modal').classList.add('flex');
+}
+
+function openEditGalleryModal(id) {
+    const item = db.gallery.find(g => g.id == id);
+    if (!item) return;
+    document.getElementById('gallery-id').value = item.id;
+    document.getElementById('gallery-title').value = item.title || '';
+    document.getElementById('gallery-desc').value = item.description || '';
+    document.getElementById('gallery-preview-img').src = item.image_url || 'https://via.placeholder.com/400x400?text=Sua+Foto';
+    document.getElementById('gallery-modal').classList.remove('hidden');
+    document.getElementById('gallery-modal').classList.add('flex');
+}
+
+function closeGalleryModal() {
+    document.getElementById('gallery-modal').classList.add('hidden');
+    document.getElementById('gallery-modal').classList.remove('flex');
+}
+
+function previewGalleryImage(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. Máximo 5MB.');
+        const reader = new FileReader();
+        reader.onload = e => document.getElementById('gallery-preview-img').src = e.target.result;
+        reader.readAsDataURL(file);
+    }
+}
+
+async function saveGalleryItem() {
+    const id = document.getElementById('gallery-id').value;
+    const title = sanitizeString(document.getElementById('gallery-title').value.trim());
+    const description = sanitizeString(document.getElementById('gallery-desc').value.trim());
+    const imgSrc = document.getElementById('gallery-preview-img')?.src || '';
+    const imageUrlToSave = imgSrc.includes('placeholder.com') ? '' : imgSrc;
+
+    if (!imageUrlToSave) return showToast('Você precisa enviar uma foto!');
+
+    try {
+        if (id) {
+            await window.supabase.from('gallery').update({ title, description, image_url: imageUrlToSave }).eq('id', id);
+            showToast('Foto atualizada!');
+        } else {
+            await window.supabase.from('gallery').insert({ title, description, image_url: imageUrlToSave, is_active: true });
+            showToast('Nova foto adicionada ao Catálogo!');
+        }
+        await loadAllData();
+        closeGalleryModal();
+        renderAdminGallery();
+    } catch (err) {
+        showToast('Erro ao salvar foto.');
+    }
+}
+
+async function confirmDeleteGalleryItem(id) {
+    if (!confirm('Deseja excluir esta foto do catálogo?')) return;
+    try {
+        await window.supabase.from('gallery').update({ is_active: false }).eq('id', id);
+        await loadAllData();
+        renderAdminGallery();
+        showToast('Foto removida do catálogo.');
+    } catch (err) {
+        showToast('Erro ao remover foto.');
     }
 }
 

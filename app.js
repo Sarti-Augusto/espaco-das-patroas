@@ -885,6 +885,7 @@ async function confirmBooking() {
             paymentDate: paymentDate
         });
 
+        // Adiciona ao Google Calendar
         addToGoogleCalendar(newAppointment);
 
         await supabaseUpdateUser(db.currentUser.id, {
@@ -1785,18 +1786,50 @@ async function saveGalleryItem() {
     if (!imageUrlToSave) return showToast('Você precisa enviar uma foto!');
 
     try {
+        let supabaseError = null;
+
         if (id) {
-            await window.supabase.from('gallery').update({ title, description, image_url: imageUrlToSave }).eq('id', id);
-            showToast('Foto atualizada!');
+            // Atualizando foto existente
+            const { error } = await window.supabase.from('gallery').update({ 
+                title: title, 
+                description: description, 
+                image_url: imageUrlToSave 
+            }).eq('id', id);
+            supabaseError = error;
         } else {
-            await window.supabase.from('gallery').insert({ title, description, image_url: imageUrlToSave, is_active: true });
-            showToast('Nova foto adicionada ao Catálogo!');
+            // Inserindo nova foto
+            const { error } = await window.supabase.from('gallery').insert([{ 
+                title: title, 
+                description: description, 
+                image_url: imageUrlToSave, 
+                is_active: true 
+            }]);
+            supabaseError = error;
         }
+
+        // Se o Supabase reclamou de algo, jogamos o erro para o "catch" abaixo
+        if (supabaseError) throw supabaseError;
+
+        showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao Catálogo!');
+        
         await loadAllData();
         closeGalleryModal();
         renderAdminGallery();
     } catch (err) {
-        showToast('Erro ao salvar foto.');
+        console.error('Erro detalhado do Supabase:', err);
+        
+        // Traduzindo os erros técnicos do banco para mensagens visuais
+        if (err.code === '42P01') {
+            showToast('Erro: A tabela "gallery" não foi criada no Supabase.');
+        } else if (err.code === '42501') {
+            showToast('Erro: RLS Bloqueando. Vá no Supabase e clique em "Disable RLS" na tabela gallery.');
+        } else if (err.code === '42703') {
+            showToast('Erro: O nome de alguma coluna (title, description, image_url) está incorreto no banco.');
+        } else if (err.message && err.message.toLowerCase().includes('payload too large')) {
+            showToast('Erro: A imagem escolhida é muito pesada para o banco de dados.');
+        } else {
+            showToast('Erro desconhecido ao salvar. Pressione F12 e veja o Console.');
+        }
     }
 }
 

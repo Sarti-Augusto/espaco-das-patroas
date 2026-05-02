@@ -10,7 +10,7 @@ let db = {
     settings: { profileImg: "" },
     appointmentsCache: [],
     scheduleConfig: { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
-    gallery: [], // Catálogo de unhas
+    gallery: [], 
     currentUser: null,
     isAdmin: false
 };
@@ -36,7 +36,7 @@ async function loadAllData() {
             window.supabase.from('settings').select('*'),
             window.supabase.from('schedule_config').select('*').limit(1),
             window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false }),
-            window.supabase.from('gallery').select('*').order('created_at', { ascending: false }) // Busca o catálogo
+            window.supabase.from('gallery').select('*').order('created_at', { ascending: false })
         ]);
 
         db.users = usersData.data || [];
@@ -240,8 +240,8 @@ let selectedDate = null;
 let selectedTime = null;
 let selectedPaymentMethod = null;
 let currentAgendaMonth = new Date();
-let agendaView = 'month'; // 'month', 'week', 'day'
-let allAppointmentsCache = []; // Cache de agendamentos para o calendário admin
+let agendaView = 'month'; 
+let allAppointmentsCache = []; 
 let currentCalendarMonth = new Date();
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
@@ -261,7 +261,6 @@ function showPage(pageId) {
 }
 
 function updateBottomNav(activeTab) {
-    // Reseta todos os botões do menu inferior do cliente
     const allNavs = document.querySelectorAll('[id^="nav-home"], [id^="nav-gallery"], [id^="nav-appointments"]');
     allNavs.forEach(el => {
         el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white');
@@ -270,7 +269,6 @@ function updateBottomNav(activeTab) {
         if(icon) icon.style.fontVariationSettings = "'FILL' 0";
     });
 
-    // Ativa apenas a aba clicada
     const activeNavs = document.querySelectorAll(`[id^="nav-${activeTab}"]`);
     activeNavs.forEach(el => {
         el.classList.remove('text-[#7f5353]/60');
@@ -353,16 +351,10 @@ function handleLoginStep1() {
     const emailInput = document.getElementById('input-login-email');
     const email = sanitizeString(emailInput.value.trim()).toLowerCase();
 
-    if (!email) {
-        showToast("Digite seu email.");
-        return;
-    }
+    if (!email) return showToast("Digite seu email.");
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        showToast("Digite um email válido.");
-        return;
-    }
+    if (!emailRegex.test(email)) return showToast("Digite um email válido.");
 
     const btn = document.getElementById('btn-login-step1');
     btn.textContent = 'Aguarde...';
@@ -382,10 +374,8 @@ function handleLoginStep1() {
         db.currentUser = user;
         db.isAdmin = false;
         saveSession();
-
         updateManuProfilePhoto();
 
-        // Verifica se precisa completar cadastro
         if (!user.name || !user.phone || user.name.trim() === '' || user.phone.trim() === '') {
             document.getElementById('input-login-name').value = user.name || '';
             document.getElementById('input-login-phone').value = user.phone || '';
@@ -411,9 +401,7 @@ function showLoginStep1(email) {
     document.getElementById('login-form-step1').classList.remove('hidden');
     document.getElementById('login-form-step2').classList.add('hidden');
     
-    if (email) {
-        document.getElementById('input-login-email').value = email;
-    }
+    if (email) document.getElementById('input-login-email').value = email;
     
     const existingUser = db.users.find(u => u.email === email);
     const btnText = existingUser && existingUser.name ? 'Entrar' : 'Cadastrar';
@@ -434,18 +422,10 @@ async function handleLogin() {
     const phoneInput = document.getElementById('input-login-phone');
 
     const name = sanitizeString(nameInput.value.trim());
-    const email = sanitizeString(emailInput.value.trim()).toLowerCase();
     const phone = phoneInput.value.replace(/\D/g, '');
 
-    if (!name || !phone) {
-        showToast("Complete seu cadastro.");
-        return;
-    }
-
-    if (phone.length < 10) {
-        showToast("Digite um telefone válido com DDD.");
-        return;
-    }
+    if (!name || !phone) return showToast("Complete seu cadastro.");
+    if (phone.length < 10) return showToast("Digite um telefone válido com DDD.");
 
     try {
         const user = await supabaseUpdateUser(db.currentUser.id, { name, phone });
@@ -555,10 +535,7 @@ function updateCartFab() {
 // BOOKING
 // ==========================================
 function proceedToBooking() {
-    if (cart.length === 0) {
-        showToast("Adicione serviços.");
-        return;
-    }
+    if (cart.length === 0) return showToast("Adicione serviços.");
 
     if (!isDbLoaded) {
         showToast("Carregando...");
@@ -724,10 +701,7 @@ function populateTimes() {
     if (!container) return;
     container.innerHTML = '';
 
-    if (!selectedDate) {
-        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
-        return;
-    }
+    if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
 
     const start = parseInt(db.scheduleConfig.start.split(':')[0]);
     const end = parseInt(db.scheduleConfig.end.split(':')[0]);
@@ -742,9 +716,7 @@ function populateTimes() {
         const btn = document.createElement('button');
         btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
         btn.textContent = isBooked ? `${timeStr} (ocupado)` : timeStr;
-        if (!isBooked) {
-            btn.onclick = () => selectTime(timeStr, btn);
-        }
+        if (!isBooked) btn.onclick = () => selectTime(timeStr, btn);
         container.appendChild(btn);
     }
 }
@@ -763,15 +735,8 @@ function selectTime(time, element) {
 // PAYMENT
 // ==========================================
 function goToPayment() {
-    if (!selectedDate || !selectedTime) {
-        showToast("Selecione data e horário.");
-        return;
-    }
-
-    if (!db.currentUser) {
-        showPage('page-login');
-        return;
-    }
+    if (!selectedDate || !selectedTime) return showToast("Selecione data e horário.");
+    if (!db.currentUser) return showPage('page-login');
 
     const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
 
@@ -854,23 +819,13 @@ function copyPixKey() {
 }
 
 async function confirmBooking() {
-    if (!selectedPaymentMethod) {
-        showToast("Selecione uma forma de pagamento.");
-        return;
-    }
-
-    if (!db.currentUser) {
-        showPage('page-login');
-        return;
-    }
+    if (!selectedPaymentMethod) return showToast("Selecione uma forma de pagamento.");
+    if (!db.currentUser) return showPage('page-login');
 
     let paymentDate = null;
     if (selectedPaymentMethod === 'scheduled') {
         paymentDate = document.getElementById('input-pay-date').value;
-        if (!paymentDate) {
-            showToast("Selecione a data para o pagamento programado.");
-            return;
-        }
+        if (!paymentDate) return showToast("Selecione a data para o pagamento programado.");
     }
 
     const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
@@ -885,7 +840,6 @@ async function confirmBooking() {
             paymentDate: paymentDate
         });
 
-        // Adiciona ao Google Calendar
         addToGoogleCalendar(newAppointment);
 
         await supabaseUpdateUser(db.currentUser.id, {
@@ -940,10 +894,7 @@ async function renderMyAppointments() {
     const container = document.getElementById('my-appointments-list');
     if (!container) return;
 
-    if (!db.currentUser) {
-        container.innerHTML = '<p class="text-center text-gray-400">Faça login para ver seus agendamentos.</p>';
-        return;
-    }
+    if (!db.currentUser) return container.innerHTML = '<p class="text-center text-gray-400">Faça login para ver seus agendamentos.</p>';
 
     try {
         const { data, error } = await window.supabase
@@ -1120,9 +1071,7 @@ async function renderAdminClients() {
 
         const appointmentsByUser = {};
         allAppointments.forEach(app => {
-            if (!appointmentsByUser[app.user_id]) {
-                appointmentsByUser[app.user_id] = [];
-            }
+            if (!appointmentsByUser[app.user_id]) appointmentsByUser[app.user_id] = [];
             appointmentsByUser[app.user_id].push(app);
         });
 
@@ -1607,14 +1556,8 @@ async function saveService() {
     const isPlaceholder = imgSrc.includes('placeholder.com') || !imgSrc;
     const imageUrlToSave = isPlaceholder ? '' : imgSrc;
 
-    if (!name) {
-        showToast('Digite o nome do serviço.');
-        return;
-    }
-    if (isNaN(price) || price < 0) {
-        showToast('Digite um preço válido.');
-        return;
-    }
+    if (!name) return showToast('Digite o nome do serviço.');
+    if (isNaN(price) || price < 0) return showToast('Digite um preço válido.');
 
     try {
         if (id) {
@@ -1659,14 +1602,8 @@ function renderAdminSettings() {
 function handleProfileImageUpload(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        if (!file.type.startsWith('image/')) {
-            showToast('Selecione um arquivo de imagem.');
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('Imagem muito grande. Máximo 5MB.');
-            return;
-        }
+        if (!file.type.startsWith('image/')) return showToast('Selecione um arquivo de imagem.');
+        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. Máximo 5MB.');
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -1697,17 +1634,20 @@ function renderClientGallery() {
 
     db.gallery.forEach(g => {
         const imgSrc = g.image_url || 'https://via.placeholder.com/400x500?text=Foto';
-        const title = g.title || 'Inspiração';
-        const desc = g.description || '';
+        const title = (g.title || 'Inspiração').replace(/'/g, "\\'");
+        const desc = (g.description || '').replace(/'/g, "\\'");
 
         const card = document.createElement('div');
         card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5] cursor-pointer';
         
-        card.onclick = () => openImageModal(imgSrc, title, desc);
+        card.onclick = function() {
+            openImageModal(imgSrc, title, desc);
+        };
 
+        // NOTA: A classe pointer-events-none foi adicionada ao overlay para garantir que o clique vá para o card
         card.innerHTML = `
             <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="${title}">
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3 pointer-events-none">
                 <h4 class="text-white font-bold text-xs shadow-black">${title}</h4>
                 <p class="text-white/80 text-[10px] truncate">${desc}</p>
             </div>
@@ -1727,16 +1667,16 @@ function openImageModal(imgSrc, title, desc) {
         titleEl.textContent = title;
         descEl.textContent = desc;
         
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
+        // Força o display flex inline para evitar qualquer conflito de CSS com o Tailwind
+        modal.style.display = 'flex';
     }
 }
 
 function closeImageModal() {
     const modal = document.getElementById('image-view-modal');
     if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
+        // Oculta forçando o inline style
+        modal.style.display = 'none';
         
         setTimeout(() => { 
             document.getElementById('expanded-image').src = ''; 
@@ -1823,7 +1763,6 @@ async function saveGalleryItem() {
         let supabaseError = null;
 
         if (id) {
-            // Atualizando foto existente
             const { error } = await window.supabase.from('gallery').update({ 
                 title: title, 
                 description: description, 
@@ -1831,7 +1770,6 @@ async function saveGalleryItem() {
             }).eq('id', id);
             supabaseError = error;
         } else {
-            // Inserindo nova foto
             const { error } = await window.supabase.from('gallery').insert([{ 
                 title: title, 
                 description: description, 
@@ -1841,7 +1779,6 @@ async function saveGalleryItem() {
             supabaseError = error;
         }
 
-        // Se o Supabase reclamou de algo, jogamos o erro para o "catch" abaixo
         if (supabaseError) throw supabaseError;
 
         showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao Catálogo!');
@@ -1852,7 +1789,6 @@ async function saveGalleryItem() {
     } catch (err) {
         console.error('Erro detalhado do Supabase:', err);
         
-        // Traduzindo os erros técnicos do banco para mensagens visuais
         if (err.code === '42P01') {
             showToast('Erro: A tabela "gallery" não foi criada no Supabase.');
         } else if (err.code === '42501') {
@@ -1890,20 +1826,16 @@ window.confirmLogout = function() {
 };
 
 window.executarLogout = function() {
-    // Limpa dados de sessão
     clearSession();
     cart = [];
 
-    // Oculta todas as páginas
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     
-    // Oculta o Admin e exibe o Client View
     const clientView = document.getElementById('client-view');
     const adminView = document.getElementById('admin-view');
     if (clientView) clientView.classList.remove('hidden');
     if (adminView) adminView.classList.add('hidden');
 
-    // Redireciona para o login
     if (typeof showLoginStep1 === 'function') showLoginStep1();
     if (typeof showPage === 'function') showPage('page-login');
     if (typeof showToast === 'function') showToast('Você saiu da conta com sucesso.');
@@ -1916,7 +1848,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initSupabase();
     hideAllPages();
 
-    // Pequeno delay para garantir que DB carregou
     setTimeout(() => {
         if (!checkAutoLogin()) {
             const loginPage = document.getElementById('page-login');

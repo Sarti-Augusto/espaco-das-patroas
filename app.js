@@ -1697,17 +1697,51 @@ function renderClientGallery() {
 
     db.gallery.forEach(g => {
         const imgSrc = g.image_url || 'https://via.placeholder.com/400x500?text=Foto';
+        const title = g.title || 'Inspiração';
+        const desc = g.description || '';
+
         const card = document.createElement('div');
-        card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5]';
+        card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5] cursor-pointer';
+        
+        card.onclick = () => openImageModal(imgSrc, title, desc);
+
         card.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover" alt="${g.title}">
+            <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="${title}">
             <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">
-                <h4 class="text-white font-bold text-xs shadow-black">${g.title || 'Inspiração'}</h4>
-                <p class="text-white/80 text-[10px] truncate">${g.description || ''}</p>
+                <h4 class="text-white font-bold text-xs shadow-black">${title}</h4>
+                <p class="text-white/80 text-[10px] truncate">${desc}</p>
             </div>
         `;
         container.appendChild(card);
     });
+}
+
+function openImageModal(imgSrc, title, desc) {
+    const modal = document.getElementById('image-view-modal');
+    const img = document.getElementById('expanded-image');
+    const titleEl = document.getElementById('expanded-image-title');
+    const descEl = document.getElementById('expanded-image-desc');
+
+    if (modal && img) {
+        img.src = imgSrc;
+        titleEl.textContent = title;
+        descEl.textContent = desc;
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeImageModal() {
+    const modal = document.getElementById('image-view-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        
+        setTimeout(() => { 
+            document.getElementById('expanded-image').src = ''; 
+        }, 300);
+    }
 }
 
 function renderAdminGallery() {

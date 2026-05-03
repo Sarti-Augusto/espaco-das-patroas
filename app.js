@@ -1640,7 +1640,6 @@ function renderClientGallery() {
         const card = document.createElement('div');
         card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5] cursor-pointer';
         
-        // Blindagem no clique do elemento container inteiro
         card.addEventListener('click', function(e) {
             e.preventDefault();
             openImageModal(imgSrc, title, desc);
@@ -1668,7 +1667,6 @@ function openImageModal(imgSrc, title, desc) {
         titleEl.textContent = title;
         descEl.textContent = desc;
         
-        // Força o CSS display flex usando important para ganhar da classe hidden
         modal.style.setProperty('display', 'flex', 'important');
     }
 }
@@ -1676,7 +1674,6 @@ function openImageModal(imgSrc, title, desc) {
 function closeImageModal() {
     const modal = document.getElementById('image-view-modal');
     if (modal) {
-        // Esconde o modal na marra
         modal.style.setProperty('display', 'none', 'important');
         
         setTimeout(() => { 
@@ -1698,7 +1695,6 @@ function renderAdminGallery() {
         const card = document.createElement('div');
         card.className = 'bg-[#f1edec] rounded-2xl overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col relative';
         
-        // Aplicando a expansão da imagem no clique da foto do Admin também
         const imgContainer = document.createElement('div');
         imgContainer.className = 'aspect-square w-full overflow-hidden cursor-pointer';
         imgContainer.addEventListener('click', function(e) {
@@ -1711,8 +1707,8 @@ function renderAdminGallery() {
         actionsDiv.className = 'p-4 bg-white flex justify-between items-center border-t border-[#d4c4b7]/20';
         actionsDiv.innerHTML = `
             <div class="overflow-hidden">
-                <h3 class="font-bold text-sm text-[#1c1b1b] truncate">${g.title || 'Sem título'}</h3>
-                <p class="text-[10px] text-stone-500 truncate">${g.description || ''}</p>
+                <h3 class="font-bold text-sm text-[#1c1b1b] truncate">${title}</h3>
+                <p class="text-[10px] text-stone-500 truncate">${desc}</p>
             </div>
             <div class="flex gap-1 ml-2">
                 <button onclick="openEditGalleryModal('${g.id}')" class="p-1.5 text-stone-400 hover:text-primary transition-colors bg-[#f7f3f2] rounded-lg">

@@ -1640,13 +1640,14 @@ function renderClientGallery() {
         const card = document.createElement('div');
         card.className = 'rounded-2xl overflow-hidden shadow-sm relative group bg-white border border-[#d4c4b7]/20 aspect-[4/5] cursor-pointer';
         
-        card.onclick = function() {
+        // Blindagem no clique do elemento container inteiro
+        card.addEventListener('click', function(e) {
+            e.preventDefault();
             openImageModal(imgSrc, title, desc);
-        };
+        });
 
-        // NOTA: A classe pointer-events-none foi adicionada ao overlay para garantir que o clique vá para o card
         card.innerHTML = `
-            <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="${title}">
+            <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none" alt="${title}">
             <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3 pointer-events-none">
                 <h4 class="text-white font-bold text-xs shadow-black">${title}</h4>
                 <p class="text-white/80 text-[10px] truncate">${desc}</p>
@@ -1667,16 +1668,16 @@ function openImageModal(imgSrc, title, desc) {
         titleEl.textContent = title;
         descEl.textContent = desc;
         
-        // Força o display flex inline para evitar qualquer conflito de CSS com o Tailwind
-        modal.style.display = 'flex';
+        // Força o CSS display flex usando important para ganhar da classe hidden
+        modal.style.setProperty('display', 'flex', 'important');
     }
 }
 
 function closeImageModal() {
     const modal = document.getElementById('image-view-modal');
     if (modal) {
-        // Oculta forçando o inline style
-        modal.style.display = 'none';
+        // Esconde o modal na marra
+        modal.style.setProperty('display', 'none', 'important');
         
         setTimeout(() => { 
             document.getElementById('expanded-image').src = ''; 
@@ -1691,26 +1692,40 @@ function renderAdminGallery() {
 
     db.gallery.forEach(g => {
         const imgSrc = g.image_url || 'https://via.placeholder.com/400x400?text=Foto';
+        const title = (g.title || 'Sem título').replace(/'/g, "\\'");
+        const desc = (g.description || '').replace(/'/g, "\\'");
+
         const card = document.createElement('div');
         card.className = 'bg-[#f1edec] rounded-2xl overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col relative';
-        card.innerHTML = `
-            <div class="aspect-square w-full overflow-hidden">
-                <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        
+        // Aplicando a expansão da imagem no clique da foto do Admin também
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'aspect-square w-full overflow-hidden cursor-pointer';
+        imgContainer.addEventListener('click', function(e) {
+            e.preventDefault();
+            openImageModal(imgSrc, title, desc);
+        });
+        imgContainer.innerHTML = `<img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none">`;
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'p-4 bg-white flex justify-between items-center border-t border-[#d4c4b7]/20';
+        actionsDiv.innerHTML = `
+            <div class="overflow-hidden">
+                <h3 class="font-bold text-sm text-[#1c1b1b] truncate">${g.title || 'Sem título'}</h3>
+                <p class="text-[10px] text-stone-500 truncate">${g.description || ''}</p>
             </div>
-            <div class="p-4 bg-white flex justify-between items-center border-t border-[#d4c4b7]/20">
-                <div class="overflow-hidden">
-                    <h3 class="font-bold text-sm text-[#1c1b1b] truncate">${g.title || 'Sem título'}</h3>
-                    <p class="text-[10px] text-stone-500 truncate">${g.description || ''}</p>
-                </div>
-                <div class="flex gap-1 ml-2">
-                    <button onclick="openEditGalleryModal('${g.id}')" class="p-1.5 text-stone-400 hover:text-primary transition-colors bg-[#f7f3f2] rounded-lg">
-                        <span class="material-symbols-outlined text-[18px]">edit</span>
-                    </button>
-                    <button onclick="confirmDeleteGalleryItem('${g.id}')" class="p-1.5 text-stone-400 hover:text-red-500 transition-colors bg-[#f7f3f2] rounded-lg">
-                        <span class="material-symbols-outlined text-[18px]">delete</span>
-                    </button>
-                </div>
-            </div>`;
+            <div class="flex gap-1 ml-2">
+                <button onclick="openEditGalleryModal('${g.id}')" class="p-1.5 text-stone-400 hover:text-primary transition-colors bg-[#f7f3f2] rounded-lg">
+                    <span class="material-symbols-outlined text-[18px]">edit</span>
+                </button>
+                <button onclick="confirmDeleteGalleryItem('${g.id}')" class="p-1.5 text-stone-400 hover:text-red-500 transition-colors bg-[#f7f3f2] rounded-lg">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+            </div>
+        `;
+        
+        card.appendChild(imgContainer);
+        card.appendChild(actionsDiv);
         container.appendChild(card);
     });
 }

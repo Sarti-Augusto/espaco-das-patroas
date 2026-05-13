@@ -196,7 +196,13 @@
                             <input id="input-login-email" type="email" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="exemplo@email.com" required />
                         </div>
                         <button type="submit" id="btn-login-step1" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
-                            Entrar
+                            Enviar link por e-mail
+                        </button>
+                        <button type="button" onclick="handleGoogleLogin('client', this)" class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl border border-[#d4c4b7] shadow-sm active:scale-95 transition-transform text-sm">
+                            Entrar com Gmail
+                        </button>
+                        <button type="button" onclick="showAdminLogin()" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">
+                            Acesso administrativo
                         </button>
                     </form>
                     <form onsubmit="event.preventDefault(); handleLogin();" id="login-form-step2" class="flex flex-col gap-6 hidden">
@@ -215,6 +221,32 @@
                             Cadastrar
                         </button>
                         <button type="button" onclick="showLoginStep1()" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Voltar</button>
+                    </form>
+                </section>
+            </div>
+        </section>
+
+        <section id="page-admin-login" class="page min-h-screen flex flex-col pt-20 pb-12">
+            <div class="flex-1 flex flex-col justify-center px-6 py-8">
+                <div class="text-center mb-8">
+                    <img id="admin-login-profile-pic" src="https://via.placeholder.com/150?text=Manu+Sarti" alt="Manu Sarti" class="w-24 h-24 rounded-full object-cover mx-auto shadow-lg">
+                    <h2 class="font-headline font-extrabold text-3xl text-[#7f5353] mt-6 tracking-tight">Administração</h2>
+                    <p class="text-sm text-stone-500 mt-2">Acesse com o e-mail administrativo autorizado</p>
+                </div>
+
+                <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
+                    <form onsubmit="event.preventDefault(); handleAdminEmailLogin(this.querySelector('button[type=submit]'));" class="flex flex-col gap-6">
+                        <div class="relative group">
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Email admin</label>
+                            <input id="input-admin-email" type="email" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="admin@email.com" required />
+                        </div>
+                        <button type="submit" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
+                            Enviar link por e-mail
+                        </button>
+                        <button type="button" onclick="handleGoogleLogin('admin', this)" class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl border border-[#d4c4b7] shadow-sm active:scale-95 transition-transform text-sm">
+                            Entrar com Gmail
+                        </button>
+                        <button type="button" onclick="goToLogin()" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Voltar para cliente</button>
                     </form>
                 </section>
             </div>

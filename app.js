@@ -15,6 +15,7 @@ let db = {
     isAdmin: false
 };
 let isDbLoaded = false;
+let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 
 async function initSupabase() {
     try {
@@ -30,19 +31,16 @@ async function initSupabase() {
 
 async function loadAllData() {
     try {
-        const [usersData, servicesData, settingsData, scheduleData, appointmentsData, galleryData] = await Promise.all([
-            window.supabase.from('users').select('*'),
+        const [servicesData, settingsData, scheduleData, galleryData] = await Promise.all([
             window.supabase.from('services').select('*'),
             window.supabase.from('settings').select('*'),
             window.supabase.from('schedule_config').select('*').limit(1),
-            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false }),
             window.supabase.from('gallery').select('*').order('created_at', { ascending: false })
         ]);
 
-        db.users = usersData.data || [];
         db.services = (servicesData.data || []).filter(s => s.is_active === true || s.is_active === 'true');
         db.settings = { profileImg: "" };
-        db.appointmentsCache = appointmentsData.data || [];
+        db.appointmentsCache = [];
         db.gallery = (galleryData.data || []).filter(g => g.is_active === true || g.is_active === 'true');
         
         db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
@@ -62,11 +60,24 @@ async function loadAllData() {
             };
         }
 
-        const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
-        if (savedUserId) {
-            db.currentUser = db.users.find(u => u.id === savedUserId);
-            if (db.currentUser) {
-                db.isAdmin = db.currentUser.email === ADMIN_EMAIL;
+        await syncAuthProfile();
+
+        if (db.currentUser) {
+            if (db.isAdmin) {
+                const [usersData, appointmentsData] = await Promise.all([
+                    window.supabase.from('users').select('*').order('created_at', { ascending: false }),
+                    window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
+                ]);
+                db.users = usersData.data || [];
+                db.appointmentsCache = appointmentsData.data || [];
+            } else {
+                db.users = [db.currentUser];
+                const { data: appointmentsData } = await window.supabase
+                    .from('appointments')
+                    .select('*')
+                    .eq('user_id', db.currentUser.id)
+                    .order('appointment_date', { ascending: false });
+                db.appointmentsCache = appointmentsData || [];
             }
         }
     } catch (error) {
@@ -80,8 +91,10 @@ function saveSession() {
     }
 }
 
-function clearSession() {
+async function clearSession() {
     localStorage.removeItem('espacoPatroas_currentUser');
+    localStorage.removeItem('espacoPatroas_pendingLoginRole');
+    await window.supabase?.auth?.signOut();
     db.currentUser = null;
     db.isAdmin = false;
 }
@@ -91,27 +104,116 @@ function clearSession() {
 // ==========================================
 
 async function supabaseLogin(email) {
-    let user = db.users.find(u => u.email === email);
-    
-    if (!user) {
-        const { data, error } = await window.supabase.from('users').insert({
-            name: '',
-            email: email,
-            type: 'Novo',
-            status: 'ok',
-            appointments_count: 0
-        }).select().single();
+    await handleEmailAuth(email, 'client');
+    return null;
+}
 
-        if (error) throw error;
-        user = data;
-        db.users.push(user);
+async function syncAuthProfile() {
+    if (!window.supabase?.auth) return null;
+
+    const { data: { user } } = await window.supabase.auth.getUser();
+    if (!user?.email) {
+        db.currentUser = null;
+        db.isAdmin = false;
+        return null;
     }
 
-    db.currentUser = user;
-    db.isAdmin = user.email === ADMIN_EMAIL;
-    saveSession();
+    const { data, error } = await window.supabase.rpc('link_current_user_profile');
+    if (error) throw error;
 
-    return user;
+    const profile = Array.isArray(data) ? data[0] : data;
+    if (!profile) return null;
+
+    const index = db.users.findIndex(u => u.id === profile.id);
+    if (index !== -1) db.users[index] = profile;
+    else db.users.push(profile);
+
+    db.currentUser = profile;
+    db.isAdmin = profile.role === 'admin';
+    saveSession();
+    return profile;
+}
+
+function getRedirectUrl(role) {
+    localStorage.setItem('espacoPatroas_pendingLoginRole', role);
+    if (!window.location.protocol.startsWith('http')) return undefined;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('loginRole', role);
+    return url.toString();
+}
+
+function withTimeout(promise, timeoutMs = 15000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Tempo limite excedido. Verifique a conexão e a configuração de Auth.')), timeoutMs);
+        })
+    ]);
+}
+
+async function handleEmailAuth(email, role) {
+    pendingLoginRole = role;
+    const options = { shouldCreateUser: true };
+    const redirectTo = getRedirectUrl(role);
+    if (redirectTo) options.emailRedirectTo = redirectTo;
+
+    const { error } = await withTimeout(window.supabase.auth.signInWithOtp({ email, options }));
+    if (error) throw error;
+    showToast('Enviamos um link de acesso. Abra seu e-mail para entrar.');
+}
+
+function setButtonLoading(button, isLoading, loadingText = 'Aguarde...') {
+    if (!button) return;
+    if (isLoading) {
+        button.dataset.originalText = button.textContent.trim();
+        button.textContent = loadingText;
+        button.disabled = true;
+        button.classList.add('opacity-60', 'pointer-events-none');
+    } else {
+        button.textContent = button.dataset.originalText || button.textContent;
+        button.disabled = false;
+        button.classList.remove('opacity-60', 'pointer-events-none');
+    }
+}
+
+async function handleGoogleLogin(role = 'client', button = null) {
+    try {
+        pendingLoginRole = role;
+        setButtonLoading(button, true);
+        const options = {};
+        const redirectTo = getRedirectUrl(role);
+        if (redirectTo) options.redirectTo = redirectTo;
+
+        const { data, error } = await withTimeout(window.supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options
+        }));
+        if (error) throw error;
+        if (!data?.url) throw new Error('Google OAuth não retornou URL de redirecionamento.');
+    } catch (error) {
+        console.error('Erro no login Google:', error);
+        showToast(error.message || 'Não foi possível iniciar login com Gmail.');
+        setButtonLoading(button, false);
+    }
+}
+
+async function handleAdminEmailLogin(button = null) {
+    const email = sanitizeString(document.getElementById('input-admin-email').value.trim()).toLowerCase();
+    if (!email) {
+        showToast('Digite o e-mail administrativo.');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true);
+        await handleEmailAuth(email, 'admin');
+    } catch (error) {
+        console.error('Erro no login admin:', error);
+        showToast(error.message || 'Erro ao enviar link administrativo.');
+    } finally {
+        setButtonLoading(button, false);
+    }
 }
 
 async function supabaseUpdateUser(userId, updates) {
@@ -211,25 +313,48 @@ async function supabaseGetAppointments() {
 // ==========================================
 function checkAutoLogin() {
     if (!isDbLoaded) return false;
-    
-    const savedUserId = localStorage.getItem('espacoPatroas_currentUser');
-    if (savedUserId) {
-        const user = db.users.find(u => u.id === savedUserId);
-        if (user) {
-            db.currentUser = user;
-            db.isAdmin = user.email === ADMIN_EMAIL;
-            updateManuProfilePhoto();
-            const userNameEl = document.getElementById('user-name-display');
-            if (userNameEl && user.name) userNameEl.textContent = user.name.split(' ')[0];
-            renderServices();
-            updateCartFab();
-            showPage('page-home');
-            updateBottomNav('home');
-            showToast(`Bem-vinda de volta, ${user.name?.split(' ')[0] || ''}!`);
+
+    const roleFromUrl = new URLSearchParams(window.location.search).get('loginRole');
+    const expectedRole = roleFromUrl || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
+
+    if (!db.currentUser) return false;
+
+    if (expectedRole === 'admin') {
+        if (!db.isAdmin) {
+            showAdminLogin();
+            showToast('Este e-mail não tem permissão administrativa.');
+            window.supabase.auth.signOut();
             return true;
         }
+        switchToAdminView();
+        showToast('Bem-vinda ao painel administrativo.');
+        return true;
     }
-    return false;
+
+    if (db.isAdmin) {
+        showAdminLogin();
+        showToast('Use a entrada administrativa para acessar este e-mail.');
+        window.supabase.auth.signOut();
+        return true;
+    }
+
+    updateManuProfilePhoto();
+
+    if (!db.currentUser.name || !db.currentUser.phone || db.currentUser.name.trim() === '' || db.currentUser.phone.trim() === '') {
+        document.getElementById('input-login-name').value = db.currentUser.name || '';
+        document.getElementById('input-login-phone').value = db.currentUser.phone || '';
+        showLoginStep2();
+        return true;
+    }
+
+    const userNameEl = document.getElementById('user-name-display');
+    if (userNameEl && db.currentUser.name) userNameEl.textContent = db.currentUser.name.split(' ')[0];
+    renderServices();
+    updateCartFab();
+    showPage('page-home');
+    updateBottomNav('home');
+    showToast(`Bem-vinda de volta, ${db.currentUser.name?.split(' ')[0] || ''}!`);
+    return true;
 }
 
 // ==========================================
@@ -294,11 +419,11 @@ function toggleAdminMenu() {
     }
 }
 
-function switchToClientView() {
+async function switchToClientView() {
     document.getElementById('admin-view').classList.add('hidden');
     document.getElementById('client-view').classList.remove('hidden');
     cart = [];
-    clearSession();
+    await clearSession();
     showLoginStep1();
     showPage('page-login');
 }
@@ -347,7 +472,7 @@ function goBackFromPayment() {
 // ==========================================
 // LOGIN FLOW
 // ==========================================
-function handleLoginStep1() {
+async function handleLoginStep1() {
     const emailInput = document.getElementById('input-login-email');
     const email = sanitizeString(emailInput.value.trim()).toLowerCase();
 
@@ -357,44 +482,15 @@ function handleLoginStep1() {
     if (!emailRegex.test(email)) return showToast("Digite um email válido.");
 
     const btn = document.getElementById('btn-login-step1');
-    btn.textContent = 'Aguarde...';
-
-    loadAllData().then(() => {
-        return supabaseLogin(email);
-    }).then(user => {
-        btn.textContent = 'Entrar';
-
-        if (user.email === ADMIN_EMAIL) {
-            db.isAdmin = true;
-            saveSession();
-            switchToAdminView();
-            return;
-        }
-
-        db.currentUser = user;
-        db.isAdmin = false;
-        saveSession();
-        updateManuProfilePhoto();
-
-        if (!user.name || !user.phone || user.name.trim() === '' || user.phone.trim() === '') {
-            document.getElementById('input-login-name').value = user.name || '';
-            document.getElementById('input-login-phone').value = user.phone || '';
-            showLoginStep2();
-            return;
-        }
-
-        const userNameEl = document.getElementById('user-name-display');
-        if (userNameEl) userNameEl.textContent = user.name.split(' ')[0];
-        renderServices();
-        updateCartFab();
-        showPage('page-home');
-        updateBottomNav('home');
-        showToast(`Bem-vinda!`);
-    }).catch(error => {
-        btn.textContent = 'Entrar';
+    try {
+        setButtonLoading(btn, true);
+        await handleEmailAuth(email, 'client');
+    } catch (error) {
         console.error('Erro no login:', error);
-        showToast('Erro ao fazer login. Tente novamente.');
-    });
+        showToast(error.message || 'Erro ao enviar link de acesso.');
+    } finally {
+        setButtonLoading(btn, false);
+    }
 }
 
 function showLoginStep1(email) {
@@ -403,9 +499,7 @@ function showLoginStep1(email) {
     
     if (email) document.getElementById('input-login-email').value = email;
     
-    const existingUser = db.users.find(u => u.email === email);
-    const btnText = existingUser && existingUser.name ? 'Entrar' : 'Cadastrar';
-    document.getElementById('btn-login-step1').textContent = btnText;
+    document.getElementById('btn-login-step1').textContent = 'Enviar link por e-mail';
 }
 
 function showLoginStep2() {
@@ -418,7 +512,6 @@ function showLoginStep2() {
 
 async function handleLogin() {
     const nameInput = document.getElementById('input-login-name');
-    const emailInput = document.getElementById('input-login-email');
     const phoneInput = document.getElementById('input-login-phone');
 
     const name = sanitizeString(nameInput.value.trim());
@@ -428,6 +521,11 @@ async function handleLogin() {
     if (phone.length < 10) return showToast("Digite um telefone válido com DDD.");
 
     try {
+        if (!db.currentUser) await syncAuthProfile();
+        if (!db.currentUser) {
+            showToast('Faça login novamente para concluir o cadastro.');
+            return;
+        }
         const user = await supabaseUpdateUser(db.currentUser.id, { name, phone });
         db.currentUser = user;
 
@@ -446,16 +544,21 @@ async function handleLogin() {
     }
 }
 
-function goToLogin() {
-    clearSession();
+async function goToLogin() {
+    await clearSession();
     updateManuProfilePhoto();
     showLoginStep1();
     showPage('page-login');
 }
 
+function showAdminLogin() {
+    hideAllPages();
+    document.getElementById('page-admin-login')?.classList.add('active');
+}
+
 function updateManuProfilePhoto() {
     const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
-    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic'];
+    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic'];
     pics.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.src = src;
@@ -655,7 +758,7 @@ function initCalendar() {
 
         const dayAbbrev = currentDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
         const dayNum = currentDate.getDate();
-        const dateStr = currentDate.toISOString().split('T')[0];
+        const dateStr = toDateInputValue(currentDate);
         const dayOfWeek = currentDate.getDay();
 
         const isBlocked = db.scheduleConfig.blockedDates.includes(dateStr);
@@ -687,6 +790,7 @@ function nextMonth() {
 
 function selectDate(dateStr, element) {
     selectedDate = dateStr;
+    selectedTime = null;
     document.querySelectorAll('#dates-container > div').forEach(el => {
         el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
         el.classList.add('bg-white', 'border-gray-200');
@@ -696,7 +800,14 @@ function selectDate(dateStr, element) {
     populateTimes();
 }
 
-function populateTimes() {
+async function getBookedSlots(dateStr) {
+    if (!dateStr || !window.supabase) return [];
+    const { data, error } = await window.supabase.rpc('get_booked_slots', { target_date: dateStr });
+    if (error) throw error;
+    return (data || []).map(slot => String(slot.appointment_time).slice(0, 5));
+}
+
+async function populateTimes() {
     const container = document.getElementById('times-container');
     if (!container) return;
     container.innerHTML = '';
@@ -707,11 +818,17 @@ function populateTimes() {
     const end = parseInt(db.scheduleConfig.end.split(':')[0]);
     const slotDuration = db.scheduleConfig.slotDuration || 3;
 
-    const dayAppointments = db.appointmentsCache?.filter(a => a.appointment_date === selectedDate) || [];
+    let bookedSlots = [];
+    try {
+        bookedSlots = await getBookedSlots(selectedDate);
+    } catch (error) {
+        console.error('Erro ao consultar horários ocupados:', error);
+        showToast('Não foi possível conferir horários ocupados.');
+    }
 
     for (let h = start; h < end; h += slotDuration) {
         const timeStr = `${h.toString().padStart(2, '0')}:00`;
-        const isBooked = dayAppointments.some(a => a.appointment_time === timeStr);
+        const isBooked = bookedSlots.includes(timeStr);
 
         const btn = document.createElement('button');
         btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
@@ -829,10 +946,19 @@ async function confirmBooking() {
     }
 
     const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const servicesNames = cart.map(s => s.name);
 
     try {
+        const bookedSlots = await getBookedSlots(selectedDate);
+        if (bookedSlots.includes(selectedTime)) {
+            selectedTime = null;
+            await populateTimes();
+            showToast('Esse horário acabou de ser reservado. Escolha outro.');
+            return;
+        }
+
         const newAppointment = await supabaseCreateAppointment({
-            services: cart.map(s => s.name),
+            services: servicesNames,
             price: totalPrice,
             date: selectedDate,
             time: selectedTime,
@@ -847,7 +973,6 @@ async function confirmBooking() {
             type: 'Recorrente'
         });
 
-        const servicesNames = cart.map(s => s.name);
         cart = [];
         renderSuccess({
             services: servicesNames,
@@ -1836,8 +1961,8 @@ window.confirmLogout = function() {
     }
 };
 
-window.executarLogout = function() {
-    clearSession();
+window.executarLogout = async function() {
+    await clearSession();
     cart = [];
 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));

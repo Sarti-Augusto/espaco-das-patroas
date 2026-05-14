@@ -65,9 +65,9 @@ async function loadAllData() {
             db.scheduleConfig = {
                 start: scheduleData.data[0].start_time || "09:00",
                 end: scheduleData.data[0].end_time || "18:00",
-                slotDuration: scheduleData.data[0].slot_duration || 3,
-                availableDays: scheduleData.data[0].available_days || [1, 2, 3, 4, 5],
-                blockedDates: scheduleData.data[0].blocked_dates || []
+                slotDuration: Number(scheduleData.data[0].slot_duration) || 3,
+                availableDays: (scheduleData.data[0].available_days || [1, 2, 3, 4, 5]).map(Number),
+                blockedDates: (scheduleData.data[0].blocked_dates || []).map(String)
             };
         }
 
@@ -334,21 +334,37 @@ async function handleEmailAuth(email, role) {
 function setButtonLoading(button, isLoading, loadingText = 'Aguarde...') {
     if (!button) return;
     if (isLoading) {
-        button.dataset.originalText = button.textContent.trim();
+        if (!button.dataset.originalText) button.dataset.originalText = button.textContent.trim();
         button.textContent = loadingText;
         button.disabled = true;
-        button.classList.add('opacity-60', 'pointer-events-none');
+        button.setAttribute('aria-busy', 'true');
+        button.classList.add('opacity-60', 'pointer-events-none', 'cursor-wait');
     } else {
         button.textContent = button.dataset.originalText || button.textContent;
         button.disabled = false;
-        button.classList.remove('opacity-60', 'pointer-events-none');
+        button.removeAttribute('aria-busy');
+        button.classList.remove('opacity-60', 'pointer-events-none', 'cursor-wait');
     }
+}
+
+function setAuthStatus(button, message = '') {
+    const status = button?.closest('form')?.querySelector('[data-auth-status]');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('hidden', !message);
+}
+
+function waitForNextPaint() {
+    return new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
 }
 
 async function handleGoogleLogin(role = 'client', button = null) {
     try {
         pendingLoginRole = role;
-        setButtonLoading(button, true);
+        setButtonLoading(button, true, 'Acessando...');
+        setAuthStatus(button, 'Abrindo login do Google. Aguarde...');
         const options = {
             queryParams: {
                 prompt: 'select_account'
@@ -357,6 +373,7 @@ async function handleGoogleLogin(role = 'client', button = null) {
         const redirectTo = getRedirectUrl(role);
         if (redirectTo) options.redirectTo = redirectTo;
 
+        await waitForNextPaint();
         const { data, error } = await withTimeout(window.supabase.auth.signInWithOAuth({
             provider: 'google',
             options
@@ -367,6 +384,7 @@ async function handleGoogleLogin(role = 'client', button = null) {
         console.error('Erro no login Google:', error);
         showToast(error.message || 'Não foi possível iniciar login com Gmail.');
         setButtonLoading(button, false);
+        setAuthStatus(button, '');
     }
 }
 
@@ -391,7 +409,7 @@ async function supabaseUpdateUser(userId, updates) {
 async function supabaseCreateAppointment(appointmentData) {
     const { data, error } = await window.supabase.from('appointments').insert({
         user_id: db.currentUser.id,
-        services_names: appointmentData.services,
+        services_names: Array.isArray(appointmentData.services) ? appointmentData.services.join(', ') : appointmentData.services,
         price: appointmentData.price,
         appointment_date: appointmentData.date,
         appointment_time: appointmentData.time,
@@ -830,10 +848,11 @@ function proceedToBookingActual() {
     const mainContent = document.querySelector('#page-booking main');
     const bottomBtn = document.getElementById('btn-continue-booking');
 
-    if (db.currentUser.status === 'pendente') {
+    if (String(db.currentUser.status || '').toLowerCase() === 'pendente') {
         if (alertContainer) { alertContainer.classList.remove('hidden'); alertContainer.classList.add('flex'); }
         if (mainContent) mainContent.classList.add('opacity-30', 'pointer-events-none');
         if (bottomBtn) bottomBtn.classList.add('hidden');
+        showPage('page-booking');
     } else {
         if (alertContainer) { alertContainer.classList.add('hidden'); alertContainer.classList.remove('flex'); }
         if (mainContent) mainContent.classList.remove('opacity-30', 'pointer-events-none');
@@ -860,9 +879,17 @@ function initCalendar() {
     const monthLabel = document.getElementById('current-month-label');
     if (!container) return;
 
-    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
     if (!db.scheduleConfig.blockedDates) db.scheduleConfig.blockedDates = [];
     if (!db.scheduleConfig.availableDays) db.scheduleConfig.availableDays = [1, 2, 3, 4, 5];
+    db.scheduleConfig.availableDays = db.scheduleConfig.availableDays.map(Number);
+    db.scheduleConfig.blockedDates = db.scheduleConfig.blockedDates.map(String);
+    db.scheduleConfig.slotDuration = Number(db.scheduleConfig.slotDuration) || 3;
+    if (!db.scheduleConfig.blockedDates) db.scheduleConfig.blockedDates = [];
+    if (!db.scheduleConfig.availableDays) db.scheduleConfig.availableDays = [1, 2, 3, 4, 5];
+    db.scheduleConfig.availableDays = db.scheduleConfig.availableDays.map(Number);
+    db.scheduleConfig.blockedDates = db.scheduleConfig.blockedDates.map(String);
+    db.scheduleConfig.slotDuration = Number(db.scheduleConfig.slotDuration) || 3;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -945,7 +972,10 @@ async function getBookedSlots(dateStr) {
     if (!dateStr || !window.supabase) return [];
     const { data, error } = await window.supabase.rpc('get_booked_slots', { target_date: dateStr });
     if (error) throw error;
-    return (data || []).map(slot => String(slot.appointment_time).slice(0, 5));
+    return (data || []).map(slot => {
+        const value = typeof slot === 'string' ? slot : slot?.appointment_time;
+        return String(value || '').slice(0, 5);
+    }).filter(Boolean);
 }
 
 async function populateTimes() {
@@ -955,8 +985,8 @@ async function populateTimes() {
 
     if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
 
-    const start = parseInt(db.scheduleConfig.start.split(':')[0]);
-    const end = parseInt(db.scheduleConfig.end.split(':')[0]);
+    const start = parseInt((db.scheduleConfig.start || '09:00').split(':')[0]);
+    const end = parseInt((db.scheduleConfig.end || '18:00').split(':')[0]);
     const slotDuration = db.scheduleConfig.slotDuration || 3;
 
     let bookedSlots = [];
@@ -967,6 +997,7 @@ async function populateTimes() {
         showToast('Não foi possível conferir horários ocupados.');
     }
 
+    let renderedSlots = 0;
     for (let h = start; h < end; h += slotDuration) {
         const timeStr = `${h.toString().padStart(2, '0')}:00`;
         const isBooked = bookedSlots.includes(timeStr);
@@ -976,6 +1007,11 @@ async function populateTimes() {
         btn.textContent = isBooked ? `${timeStr} (ocupado)` : timeStr;
         if (!isBooked) btn.onclick = () => selectTime(timeStr, btn);
         container.appendChild(btn);
+        renderedSlots++;
+    }
+
+    if (renderedSlots === 0) {
+        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum horário configurado para esta data.</p>';
     }
 }
 
@@ -996,9 +1032,9 @@ function goToPayment() {
     if (!selectedDate || !selectedTime) return showToast("Selecione data e horário.");
     if (!db.currentUser) return showPage('page-login');
 
-    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const totalPrice = getCartTotal();
 
-    const serviceNames = cart.map(s => s.name).join(', ');
+    const serviceNames = getCartServiceNames();
     document.getElementById('pay-service-name').textContent = serviceNames;
     document.getElementById('pay-service-date').textContent = `${formatDate(selectedDate)} às ${selectedTime}`;
     document.getElementById('pay-service-price').textContent = formatCurrency(totalPrice);
@@ -1022,12 +1058,13 @@ function goToPayment() {
     max.setDate(today.getDate() + 20);
 
     if (payInput) {
-        payInput.min = today.toISOString().split('T')[0];
-        payInput.max = max.toISOString().split('T')[0];
+        payInput.min = toDateInputValue(today);
+        payInput.max = toDateInputValue(max);
         payInput.value = '';
     }
 
     selectedPaymentMethod = null;
+    document.querySelectorAll('input[name="payment"]').forEach(input => { input.checked = false; });
     showPage('page-payment');
 }
 
@@ -1052,17 +1089,17 @@ function selectPaymentMethod(method) {
 }
 
 function requestPaymentLink() {
-    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const totalPrice = getCartTotal();
     const signal = (totalPrice / 2).toFixed(2);
-    const services = cart.map(s => s.name).join(', ');
+    const services = getCartServiceNames();
 
     let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento do sinal (50%).%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}%0ASinal (50%): ${formatCurrency(parseFloat(signal))}`;
     window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
 }
 
 function requestCardPayment() {
-    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
-    const services = cart.map(s => s.name).join(', ');
+    const totalPrice = getCartTotal();
+    const services = getCartServiceNames();
 
     let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento via cartão.%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}`;
     window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
@@ -1086,7 +1123,7 @@ async function confirmBooking() {
         if (!paymentDate) return showToast("Selecione a data para o pagamento programado.");
     }
 
-    const totalPrice = cart.reduce((acc, item) => acc + item.price, 0);
+    const totalPrice = getCartTotal();
     const servicesNames = cart.map(s => s.name);
 
     try {
@@ -1143,8 +1180,36 @@ function formatPaymentMethod(method) {
     return map[method] || method;
 }
 
+function getServicePrice(service) {
+    const price = Number(service?.price);
+    return Number.isFinite(price) ? price : 0;
+}
+
+function getCartTotal() {
+    return cart.reduce((acc, item) => acc + getServicePrice(item), 0);
+}
+
+function getCartServiceNames() {
+    return cart.map(s => s.name).filter(Boolean).join(', ');
+}
+
 function formatCurrency(value) {
-    return `R$ ${parseFloat(value).toFixed(2).replace('.', ',')}`;
+    const amount = Number(value);
+    return `R$ ${(Number.isFinite(amount) ? amount : 0).toFixed(2).replace('.', ',')}`;
+}
+
+function toDateInputValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function parseDateInputValue(dateStr) {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
 }
 
 function formatDate(dateStr) {
@@ -1259,7 +1324,7 @@ async function renderAdminDashboard() {
 }
 
 async function renderNextAppointmentCard() {
-    const hojeStr = new Date().toISOString().split('T')[0];
+    const hojeStr = toDateInputValue(new Date());
     const { data: proximos } = await window.supabase.from('appointments')
         .select('*, users(name)')
         .eq('status', 'Confirmado')
@@ -1279,7 +1344,7 @@ async function renderNextAppointmentCard() {
 }
 
 async function showNextAppointmentDetails() {
-    const hojeStr = new Date().toISOString().split('T')[0];
+    const hojeStr = toDateInputValue(new Date());
 
     try {
         const { data: proximos, error } = await window.supabase.from('appointments')
@@ -1419,7 +1484,8 @@ async function updateUserType(userId, newType) {
 async function deleteUser(userId) {
     if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
     try {
-        await window.supabase.from('users').delete().eq('id', userId);
+        const { error } = await window.supabase.from('users').delete().eq('id', userId);
+        if (error) throw error;
         db.users = db.users.filter(u => u.id !== userId);
         renderAdminClients();
         showToast('Cliente excluído.');
@@ -1437,8 +1503,10 @@ async function renderAdminAppointments() {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
 
     try {
-        const { data: appointments } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
-        const { data: users } = await window.supabase.from('users').select('*');
+        const { data: appointments, error: appointmentsError } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
+        if (appointmentsError) throw appointmentsError;
+        const { data: users, error: usersError } = await window.supabase.from('users').select('*');
+        if (usersError) throw usersError;
 
         if (!appointments || appointments.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhum agendamento encontrado.</td></tr>';
@@ -1487,7 +1555,8 @@ async function renderAdminAppointments() {
 async function updateAppointmentStatus(appointmentId, newStatus) {
     try {
         const appointment = db.appointmentsCache.find(a => a.id === appointmentId);
-        await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
+        const { error } = await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
+        if (error) throw error;
 
         const idx = db.appointmentsCache.findIndex(a => a.id === appointmentId);
         if (idx !== -1) db.appointmentsCache[idx].status = newStatus;
@@ -1512,8 +1581,8 @@ function searchAppointments() {
     });
 }
 
-function renderAdminSchedule() {
-    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+async function renderAdminSchedule() {
+    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
     const startInput = document.getElementById('config-start-time');
     const endInput = document.getElementById('config-end-time');
@@ -1537,7 +1606,7 @@ function renderAdminSchedule() {
         });
     }
 
-    loadAppointmentsForCalendar();
+    await loadAppointmentsForCalendar();
     renderAgendaCalendar();
     updateAgendaMonthLabel();
 }
@@ -1592,7 +1661,7 @@ function renderAgendaCalendar() {
     for (let day = 1; day <= daysInMonth; day++) {
         const currentDate = new Date(year, month, day);
         currentDate.setHours(0, 0, 0, 0);
-        const dateStr = currentDate.toISOString().split('T')[0];
+        const dateStr = toDateInputValue(currentDate);
         const dayAppointments = monthAppointments.filter(a => a.appointment_date === dateStr);
         const isToday = currentDate.getTime() === today.getTime();
         const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
@@ -1633,7 +1702,8 @@ function renderAgendaCalendar() {
 
 function getAppointmentsForMonth(year, month) {
     return allAppointmentsCache.filter(app => {
-        const appDate = new Date(app.appointment_date);
+        const appDate = parseDateInputValue(app.appointment_date);
+        if (!appDate) return false;
         return appDate.getFullYear() === year && appDate.getMonth() === month;
     });
 }
@@ -1718,7 +1788,13 @@ async function saveScheduleSettings() {
             if (error) throw error;
         }
 
-        db.scheduleConfig = { ...db.scheduleConfig, ...updates };
+        db.scheduleConfig = {
+            start: updates.start_time,
+            end: updates.end_time,
+            slotDuration: updates.slot_duration,
+            availableDays: updates.available_days,
+            blockedDates: updates.blocked_dates
+        };
         showToast('Agenda atualizada com sucesso!');
         renderAdminSchedule();
     } catch (error) {

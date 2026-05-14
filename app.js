@@ -211,6 +211,10 @@ function getAuthErrorMessageFromUrl() {
     return query.get('error_description') || hash.get('error_description') || query.get('error') || hash.get('error');
 }
 
+function getAuthCodeFromUrl() {
+    return new URLSearchParams(window.location.search).get('code');
+}
+
 function cleanAuthRedirectUrl() {
     if (!window.history?.replaceState || !window.location.protocol.startsWith('http')) return;
 
@@ -234,6 +238,27 @@ async function processInitialAuth() {
         showToast(`Erro na autenticacao: ${authError}`);
         cleanAuthRedirectUrl();
         return false;
+    }
+
+    const authCode = getAuthCodeFromUrl();
+    if (authCode) {
+        try {
+            const currentSession = await withTimeout(window.supabase.auth.getSession(), 5000);
+            if (!currentSession.data?.session) {
+                const { error: exchangeError } = await withTimeout(
+                    window.supabase.auth.exchangeCodeForSession(authCode),
+                    10000
+                );
+                if (exchangeError) throw exchangeError;
+            }
+        } catch (exchangeError) {
+            const fallbackSession = await withTimeout(window.supabase.auth.getSession(), 5000);
+            if (!fallbackSession.data?.session) {
+                console.error('Erro ao converter codigo de autenticacao:', exchangeError);
+                showToast(exchangeError.message || 'Login recebido, mas nao foi possivel concluir a sessao.');
+                return false;
+            }
+        }
     }
 
     const { data, error } = await withTimeout(window.supabase.auth.getSession(), 8000);

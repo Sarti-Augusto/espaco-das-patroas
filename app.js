@@ -25,7 +25,8 @@ async function initSupabase() {
             auth: {
                 persistSession: true,
                 autoRefreshToken: true,
-                detectSessionInUrl: true
+                detectSessionInUrl: true,
+                flowType: 'implicit'
             }
         });
         attachAuthListener();
@@ -312,7 +313,11 @@ async function handleGoogleLogin(role = 'client', button = null) {
     try {
         pendingLoginRole = role;
         setButtonLoading(button, true);
-        const options = {};
+        const options = {
+            queryParams: {
+                prompt: 'select_account'
+            }
+        };
         const redirectTo = getRedirectUrl(role);
         if (redirectTo) options.redirectTo = redirectTo;
 

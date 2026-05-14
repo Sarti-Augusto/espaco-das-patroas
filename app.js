@@ -3,6 +3,7 @@
 // ==========================================
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NzM2NTUsImV4cCI6MjA5MTU0OTY1NX0.lHX5WB9WCY_pEgXcN4hvve3Pi5xqJgITbESrxiO3Nwk';
+const APP_BASE_URL = 'https://espaco-das-patroas.vercel.app';
 
 let db = {
     users: [],
@@ -16,10 +17,18 @@ let db = {
 };
 let isDbLoaded = false;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
+let authListenerAttached = false;
 
 async function initSupabase() {
     try {
-        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+        attachAuthListener();
         await loadAllData();
         isDbLoaded = true;
         console.log('Supabase conectado!');
@@ -62,27 +71,33 @@ async function loadAllData() {
 
         await syncAuthProfile();
 
-        if (db.currentUser) {
-            if (db.isAdmin) {
-                const [usersData, appointmentsData] = await Promise.all([
-                    window.supabase.from('users').select('*').order('created_at', { ascending: false }),
-                    window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
-                ]);
-                db.users = usersData.data || [];
-                db.appointmentsCache = appointmentsData.data || [];
-            } else {
-                db.users = [db.currentUser];
-                const { data: appointmentsData } = await window.supabase
-                    .from('appointments')
-                    .select('*')
-                    .eq('user_id', db.currentUser.id)
-                    .order('appointment_date', { ascending: false });
-                db.appointmentsCache = appointmentsData || [];
-            }
-        }
+        await loadProtectedDataForCurrentUser();
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
+        showToast(error.message || 'Erro ao carregar dados do aplicativo.');
     }
+}
+
+async function loadProtectedDataForCurrentUser() {
+    if (!db.currentUser) return;
+
+    if (db.isAdmin) {
+        const [usersData, appointmentsData] = await Promise.all([
+            window.supabase.from('users').select('*').order('created_at', { ascending: false }),
+            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
+        ]);
+        db.users = usersData.data || [];
+        db.appointmentsCache = appointmentsData.data || [];
+        return;
+    }
+
+    db.users = [db.currentUser];
+    const { data: appointmentsData } = await window.supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', db.currentUser.id)
+        .order('appointment_date', { ascending: false });
+    db.appointmentsCache = appointmentsData || [];
 }
 
 function saveSession() {
@@ -138,9 +153,24 @@ function getRedirectUrl(role) {
     localStorage.setItem('espacoPatroas_pendingLoginRole', role);
     if (!window.location.protocol.startsWith('http')) return undefined;
 
-    const url = new URL(window.location.href);
+    const url = new URL('/', getAuthRedirectBaseUrl());
     url.searchParams.set('loginRole', role);
+    if (shouldUseLocalAuthRedirect()) url.searchParams.set('devAuth', '1');
     return url.toString();
+}
+
+function shouldUseLocalAuthRedirect() {
+    const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    const params = new URLSearchParams(window.location.search);
+    return isLocalhost && (
+        params.get('devAuth') === '1' ||
+        localStorage.getItem('espacoPatroas_devAuthRedirect') === 'true'
+    );
+}
+
+function getAuthRedirectBaseUrl() {
+    if (shouldUseLocalAuthRedirect()) return window.location.origin;
+    return APP_BASE_URL;
 }
 
 function withTimeout(promise, timeoutMs = 15000) {
@@ -150,6 +180,82 @@ function withTimeout(promise, timeoutMs = 15000) {
             setTimeout(() => reject(new Error('Tempo limite excedido. Verifique a conexão e a configuração de Auth.')), timeoutMs);
         })
     ]);
+}
+
+function attachAuthListener() {
+    if (authListenerAttached || !window.supabase?.auth) return;
+    authListenerAttached = true;
+
+    window.supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event !== 'SIGNED_IN' || !session?.user) return;
+
+        try {
+            await syncAuthProfile();
+            await loadProtectedDataForCurrentUser();
+            if (checkAutoLogin()) cleanAuthRedirectUrl();
+        } catch (error) {
+            console.error('Erro ao processar sessao autenticada:', error);
+            showToast(error.message || 'Login autenticado, mas nao foi possivel carregar seu perfil.');
+        }
+    });
+}
+
+function getLoginRoleFromUrl() {
+    const role = new URLSearchParams(window.location.search).get('loginRole');
+    return role === 'admin' ? 'admin' : role === 'client' ? 'client' : null;
+}
+
+function getAuthErrorMessageFromUrl() {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    return query.get('error_description') || hash.get('error_description') || query.get('error') || hash.get('error');
+}
+
+function cleanAuthRedirectUrl() {
+    if (!window.history?.replaceState || !window.location.protocol.startsWith('http')) return;
+
+    const url = new URL(window.location.href);
+    ['loginRole', 'devAuth', 'code', 'error', 'error_code', 'error_description'].forEach(param => {
+        url.searchParams.delete(param);
+    });
+    const safeHash = url.hash && !url.hash.includes('access_token') ? url.hash : '';
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${safeHash}`);
+}
+
+async function processInitialAuth() {
+    const roleFromUrl = getLoginRoleFromUrl();
+    if (roleFromUrl) {
+        pendingLoginRole = roleFromUrl;
+        localStorage.setItem('espacoPatroas_pendingLoginRole', roleFromUrl);
+    }
+
+    const authError = getAuthErrorMessageFromUrl();
+    if (authError) {
+        showToast(`Erro na autenticacao: ${authError}`);
+        cleanAuthRedirectUrl();
+        return false;
+    }
+
+    const { data, error } = await withTimeout(window.supabase.auth.getSession(), 8000);
+    if (error) {
+        showToast(error.message || 'Nao foi possivel recuperar a sessao de login.');
+        return false;
+    }
+
+    if (data?.session?.user && !db.currentUser) {
+        try {
+            await syncAuthProfile();
+            await loadProtectedDataForCurrentUser();
+        } catch (profileError) {
+            console.error('Erro ao vincular perfil autenticado:', profileError);
+            showToast(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
+            return false;
+        }
+    }
+
+    const routed = checkAutoLogin();
+    if (routed) cleanAuthRedirectUrl();
+    return routed;
 }
 
 async function handleEmailAuth(email, role) {
@@ -323,10 +429,12 @@ function checkAutoLogin() {
         if (!db.isAdmin) {
             showAdminLogin();
             showToast('Este e-mail não tem permissão administrativa.');
+            localStorage.removeItem('espacoPatroas_pendingLoginRole');
             window.supabase.auth.signOut();
             return true;
         }
         switchToAdminView();
+        localStorage.removeItem('espacoPatroas_pendingLoginRole');
         showToast('Bem-vinda ao painel administrativo.');
         return true;
     }
@@ -334,6 +442,7 @@ function checkAutoLogin() {
     if (db.isAdmin) {
         showAdminLogin();
         showToast('Use a entrada administrativa para acessar este e-mail.');
+        localStorage.removeItem('espacoPatroas_pendingLoginRole');
         window.supabase.auth.signOut();
         return true;
     }
@@ -353,6 +462,7 @@ function checkAutoLogin() {
     updateCartFab();
     showPage('page-home');
     updateBottomNav('home');
+    localStorage.removeItem('espacoPatroas_pendingLoginRole');
     showToast(`Bem-vinda de volta, ${db.currentUser.name?.split(' ')[0] || ''}!`);
     return true;
 }
@@ -1984,12 +2094,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initSupabase();
     hideAllPages();
 
-    setTimeout(() => {
-        if (!checkAutoLogin()) {
-            const loginPage = document.getElementById('page-login');
-            if (loginPage) loginPage.classList.add('active');
-        }
-    }, 500);
+    const didRoute = await processInitialAuth();
+    if (!didRoute) {
+        const loginPage = document.getElementById('page-login');
+        if (loginPage) loginPage.classList.add('active');
+    }
 });
 
 // ==========================================

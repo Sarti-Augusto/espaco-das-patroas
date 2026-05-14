@@ -190,6 +190,7 @@
                 </div>
 
                 <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
+                    <div id="auth-debug-panel" class="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
                     <form onsubmit="event.preventDefault(); handleGoogleLogin('client', this.querySelector('button[type=submit]'));" id="login-form-step1" class="flex flex-col gap-6">
                         <button type="submit" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
                             Entrar com Gmail
@@ -228,6 +229,7 @@
                 </div>
 
                 <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
+                    <div id="admin-auth-debug-panel" class="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
                     <form onsubmit="event.preventDefault(); handleGoogleLogin('admin', this.querySelector('button[type=submit]'));" class="flex flex-col gap-6">
                         <button type="submit" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
                             Entrar com Gmail

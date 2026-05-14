@@ -217,7 +217,36 @@ function showAuthError(message) {
     lastAuthErrorMessage = message || '';
     if (!lastAuthErrorMessage) return;
     console.error('Auth:', lastAuthErrorMessage);
+    renderAuthDebugPanel(lastAuthErrorMessage);
     showToast(lastAuthErrorMessage);
+}
+
+function renderAuthDebugPanel(message = '') {
+    const safeUrl = new URL(window.location.href);
+    safeUrl.hash = window.location.hash ? '#[conteudo protegido]' : '';
+    const safeHash = window.location.hash
+        ? (window.location.hash.includes('access_token') ? '[token recebido - ocultado]' : window.location.hash)
+        : '(vazio)';
+
+    const details = [
+        message,
+        `URL: ${safeUrl.toString()}`,
+        `Hash: ${safeHash}`,
+        `Role: ${new URLSearchParams(window.location.search).get('loginRole') || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client'}`
+    ].filter(Boolean).join('\n');
+
+    ['auth-debug-panel', 'admin-auth-debug-panel'].forEach(id => {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        if (!message) {
+            panel.classList.add('hidden');
+            panel.textContent = '';
+            return;
+        }
+        panel.classList.remove('hidden');
+        panel.textContent = details;
+        panel.style.whiteSpace = 'pre-wrap';
+    });
 }
 
 function getAuthCodeFromUrl() {
@@ -245,7 +274,6 @@ async function processInitialAuth() {
     const authError = getAuthErrorMessageFromUrl();
     if (authError) {
         showAuthError(`Erro na autenticacao: ${authError}`);
-        cleanAuthRedirectUrl();
         return false;
     }
 
@@ -292,7 +320,10 @@ async function processInitialAuth() {
     }
 
     const routed = checkAutoLogin();
-    if (routed) cleanAuthRedirectUrl();
+    if (routed) {
+        renderAuthDebugPanel('');
+        cleanAuthRedirectUrl();
+    }
     return routed;
 }
 

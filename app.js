@@ -111,7 +111,18 @@ function saveSession() {
 async function clearSession() {
     localStorage.removeItem('espacoPatroas_currentUser');
     localStorage.removeItem('espacoPatroas_pendingLoginRole');
-    await window.supabase?.auth?.signOut();
+    Object.keys(localStorage)
+        .filter(key => key.startsWith('sb-') || key.includes('supabase.auth.token'))
+        .forEach(key => localStorage.removeItem(key));
+
+    if (window.supabase?.auth?.signOut) {
+        try {
+            await withTimeout(window.supabase.auth.signOut(), 3000);
+        } catch (error) {
+            console.warn('Logout remoto nao concluido, sessao local limpa:', error);
+        }
+    }
+
     db.currentUser = null;
     db.isAdmin = false;
 }
@@ -205,6 +216,29 @@ function attachAuthListener() {
 function getLoginRoleFromUrl() {
     const role = new URLSearchParams(window.location.search).get('loginRole');
     return role === 'admin' ? 'admin' : role === 'client' ? 'client' : null;
+}
+
+function hasAuthRedirectPayload() {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    return Boolean(
+        query.get('loginRole') ||
+        query.get('code') ||
+        query.get('error') ||
+        hash.get('access_token') ||
+        hash.get('error')
+    );
+}
+
+function showAuthReturnLoading() {
+    if (!hasAuthRedirectPayload()) return false;
+
+    const role = getLoginRoleFromUrl() || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
+    hideAllPages();
+    const loadingPage = document.getElementById(role === 'admin' ? 'page-admin-login' : 'page-login');
+    if (loadingPage) loadingPage.classList.add('active');
+    setAuthStatus(null, 'Carregando login de acesso. Aguarde...');
+    return true;
 }
 
 function getAuthErrorMessageFromUrl() {
@@ -1137,7 +1171,7 @@ async function copyTextToClipboard(text) {
 async function copyPixKey() {
     try {
         const copied = await copyTextToClipboard('27997559191');
-        showToast(copied ? 'Chave PIX copiada!' : 'Não foi possível copiar. Chave PIX: 27997559191');
+        showToast(copied ? 'Chave PIX copiada: 27997559191' : 'Não foi possível copiar. Chave PIX: 27997559191');
     } catch (error) {
         showToast('Não foi possível copiar. Chave PIX: 27997559191');
     }
@@ -2226,15 +2260,17 @@ async function confirmDeleteGalleryItem(id) {
 // LOGOUT - VIA NATIVE BROWSER CONFIRM
 // ==========================================
 window.confirmLogout = function() {
-    const wantsToLogOut = window.confirm("Sair da conta?\n\nVocê será desconectado e precisará fazer login novamente.");
-    if (wantsToLogOut) {
-        executarLogout();
-    }
+    executarLogout();
 };
 
 window.executarLogout = async function() {
-    await clearSession();
+    showToast('Saindo da conta...');
     cart = [];
+    selectedDate = null;
+    selectedTime = null;
+    selectedPaymentMethod = null;
+
+    await clearSession();
 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     
@@ -2245,6 +2281,7 @@ window.executarLogout = async function() {
 
     if (typeof showLoginStep1 === 'function') showLoginStep1();
     if (typeof showPage === 'function') showPage('page-login');
+    updateManuProfilePhoto();
     if (typeof showToast === 'function') showToast('Você saiu da conta com sucesso.');
 };
 
@@ -2252,8 +2289,9 @@ window.executarLogout = async function() {
 // INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
+    showAuthReturnLoading();
     await initSupabase();
-    hideAllPages();
+    if (!hasAuthRedirectPayload()) hideAllPages();
 
     const didRoute = await processInitialAuth();
     if (!didRoute) {
@@ -2303,13 +2341,15 @@ function showToast(message) {
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = 'toast fixed left-4 right-4 bottom-24 z-[9999] flex justify-center transition-all duration-300 opacity-0 translate-y-3 pointer-events-none';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     toast.innerHTML = `<div class="toast-message bg-[#1c1b1b] text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium">${message}</div>`;
     document.body.appendChild(toast);
 
-    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => toast.classList.remove('opacity-0', 'translate-y-3'), 10);
     setTimeout(() => {
-        toast.classList.remove('show');
+        toast.classList.add('opacity-0', 'translate-y-3');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }

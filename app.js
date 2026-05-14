@@ -269,6 +269,9 @@ async function processInitialAuth() {
     if (roleFromUrl) {
         pendingLoginRole = roleFromUrl;
         localStorage.setItem('espacoPatroas_pendingLoginRole', roleFromUrl);
+        const loadingPage = document.getElementById(roleFromUrl === 'admin' ? 'page-admin-login' : 'page-login');
+        if (loadingPage) loadingPage.classList.add('active');
+        setAuthStatus(null, 'Carregando login de acesso. Aguarde...');
     }
 
     const authError = getAuthErrorMessageFromUrl();
@@ -348,10 +351,14 @@ function setButtonLoading(button, isLoading, loadingText = 'Aguarde...') {
 }
 
 function setAuthStatus(button, message = '') {
-    const status = button?.closest('form')?.querySelector('[data-auth-status]');
-    if (!status) return;
-    status.textContent = message;
-    status.classList.toggle('hidden', !message);
+    const targets = button
+        ? [button.closest('form')?.querySelector('[data-auth-status]')]
+        : Array.from(document.querySelectorAll('[data-auth-status]'));
+
+    targets.filter(Boolean).forEach(status => {
+        status.textContent = message;
+        status.classList.toggle('hidden', !message);
+    });
 }
 
 function waitForNextPaint() {
@@ -364,7 +371,7 @@ async function handleGoogleLogin(role = 'client', button = null) {
     try {
         pendingLoginRole = role;
         setButtonLoading(button, true, 'Acessando...');
-        setAuthStatus(button, 'Abrindo login do Google. Aguarde...');
+        setAuthStatus(button, 'Carregando login de acesso. Aguarde...');
         const options = {
             queryParams: {
                 prompt: 'select_account'
@@ -1105,12 +1112,35 @@ function requestCardPayment() {
     window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
 }
 
-function copyPixKey() {
-    navigator.clipboard.writeText('27997559191').then(() => {
-        showToast('Chave PIX copiada!');
-    }).catch(() => {
-        showToast('Erro ao copiar.');
-    });
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+    }
+
+    const input = document.createElement('input');
+    input.value = text;
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+    input.select();
+    input.setSelectionRange(0, input.value.length);
+
+    try {
+        return document.execCommand?.('copy') === true;
+    } finally {
+        input.remove();
+    }
+}
+
+async function copyPixKey() {
+    try {
+        const copied = await copyTextToClipboard('27997559191');
+        showToast(copied ? 'Chave PIX copiada!' : 'Não foi possível copiar. Chave PIX: 27997559191');
+    } catch (error) {
+        showToast('Não foi possível copiar. Chave PIX: 27997559191');
+    }
 }
 
 async function confirmBooking() {
@@ -1193,6 +1223,28 @@ function getCartServiceNames() {
     return cart.map(s => s.name).filter(Boolean).join(', ');
 }
 
+function formatServiceNames(value) {
+    if (Array.isArray(value)) return value.join(', ');
+    if (!value) return 'Serviço';
+
+    const text = String(value).trim();
+    if ((text.startsWith('[') && text.endsWith(']')) || (text.startsWith('"') && text.endsWith('"'))) {
+        try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed)) return parsed.join(', ');
+            if (typeof parsed === 'string') return parsed;
+        } catch (error) {
+            return text.replace(/^\[|\]$/g, '').replace(/^["']|["']$/g, '').replace(/["']/g, '');
+        }
+    }
+
+    return text;
+}
+
+function formatAppointmentTime(value) {
+    return String(value || '').slice(0, 5);
+}
+
 function formatCurrency(value) {
     const amount = Number(value);
     return `R$ ${(Number.isFinite(amount) ? amount : 0).toFixed(2).replace('.', ',')}`;
@@ -1257,13 +1309,15 @@ async function renderMyAppointments() {
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
             const paymentColor = app.payment_status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+            const serviceNames = formatServiceNames(app.services_names);
+            const appointmentTime = formatAppointmentTime(app.appointment_time);
 
             return `
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-[#d4c4b7]/10">
                     <div class="flex justify-between items-start mb-3">
                         <div>
-                            <p class="font-headline font-bold text-[#1c1b1b]">${app.services_names}</p>
-                            <p class="text-xs text-[#50453b] mt-1">${formatDate(app.appointment_date)} às ${app.appointment_time}</p>
+                            <p class="font-headline font-bold text-[#1c1b1b]">${serviceNames}</p>
+                            <p class="text-xs text-[#50453b] mt-1">${formatDate(app.appointment_date)} às ${appointmentTime}</p>
                         </div>
                         <span class="px-3 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${app.status}</span>
                     </div>
@@ -1337,7 +1391,7 @@ async function renderNextAppointmentCard() {
     if (proximos && proximos.length > 0) {
         const app = proximos[0];
         infoEl.textContent = `${app.appointment_time} - ${app.users?.name || 'Cliente'}`;
-        document.getElementById('next-appointment-service').textContent = app.services_names;
+        document.getElementById('next-appointment-service').textContent = formatServiceNames(app.services_names);
     } else {
         infoEl.textContent = 'Nenhum agendamento hoje';
     }
@@ -1366,7 +1420,7 @@ async function showNextAppointmentDetails() {
             const detalhes = `📅 DETALHES DO PRÓXIMO AGENDAMENTO\n\n` +
                              `👤 Cliente: ${clientName}\n` +
                              `📱 Telefone: ${clientPhone}\n` +
-                             `💅 Serviço: ${app.services_names}\n` +
+                             `💅 Serviço: ${formatServiceNames(app.services_names)}\n` +
                              `🕒 Data: ${dataFormatada} às ${app.appointment_time}\n` +
                              `💰 Valor: ${formatCurrency(app.price)}\n` +
                              `💳 Pagamento: ${app.payment_status}`;
@@ -1439,7 +1493,7 @@ async function renderAdminClients() {
                     </select>
                 </td>
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <span class="text-stone-500 font-medium">${lastApp?.services_names || '-'}</span>
+                    <span class="text-stone-500 font-medium">${lastApp ? formatServiceNames(lastApp.services_names) : '-'}</span>
                     <div class="text-[10px] text-stone-400">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</div>
                 </td>
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
@@ -1531,7 +1585,7 @@ async function renderAdminAppointments() {
                     <span class="font-medium text-[#1c1b1b]">${user?.name || 'Cliente'}</span>
                     <div class="text-xs text-stone-400">${user?.email || '-'}</div>
                 </td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${app.services_names}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatServiceNames(app.services_names)}</td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatDate(app.appointment_date)}</td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${app.appointment_time}</td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
@@ -1672,7 +1726,7 @@ function renderAgendaCalendar() {
         
         let appointmentsHtml = '';
         dayAppointments.slice(0, 2).forEach(app => {
-            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${app.appointment_time} - ${app.services_names?.split(',')[0] || 'Serviço'}</div>`;
+            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${formatAppointmentTime(app.appointment_time)} - ${formatServiceNames(app.services_names).split(',')[0] || 'Serviço'}</div>`;
         });
         if (dayAppointments.length > 2) {
             appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
@@ -2222,14 +2276,15 @@ function sanitizeString(str) {
 // GOOGLE CALENDAR INTEGRATION
 // ==========================================
 function generateGoogleCalendarUrl(appointment) {
-    const title = encodeURIComponent(`Espaço das Patroas - ${appointment.services_names}`);
+    const serviceNames = formatServiceNames(appointment.services_names);
+    const title = encodeURIComponent(`Espaço das Patroas - ${serviceNames}`);
     const dateStr = appointment.appointment_date.replace(/-/g, '');
     const startTime = appointment.appointment_time.replace(':', '') + '00';
     const endHour = parseInt(appointment.appointment_time.split(':')[0]) + 3;
     const endTime = `${endHour.toString().padStart(2, '0')}${appointment.appointment_time.split(':')[1]}00`;
     const start = `${dateStr}T${startTime}`;
     const end = `${dateStr}T${endTime}`;
-    const details = encodeURIComponent(`Cliente: ${appointment.client_name || 'Cliente'}\nServiço: ${appointment.services_names}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || 'Pendente'}`);
+    const details = encodeURIComponent(`Cliente: ${appointment.client_name || 'Cliente'}\nServiço: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || 'Pendente'}`);
     const location = encodeURIComponent('Espaço das Patroas');
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
 }

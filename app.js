@@ -18,6 +18,7 @@ let db = {
 let isDbLoaded = false;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 let authListenerAttached = false;
+let lastAuthErrorMessage = '';
 
 async function initSupabase() {
     try {
@@ -120,7 +121,7 @@ async function clearSession() {
 // ==========================================
 
 async function supabaseLogin(email) {
-    await handleEmailAuth(email, 'client');
+    showToast('Entre com Gmail para continuar.');
     return null;
 }
 
@@ -212,6 +213,13 @@ function getAuthErrorMessageFromUrl() {
     return query.get('error_description') || hash.get('error_description') || query.get('error') || hash.get('error');
 }
 
+function showAuthError(message) {
+    lastAuthErrorMessage = message || '';
+    if (!lastAuthErrorMessage) return;
+    console.error('Auth:', lastAuthErrorMessage);
+    showToast(lastAuthErrorMessage);
+}
+
 function getAuthCodeFromUrl() {
     return new URLSearchParams(window.location.search).get('code');
 }
@@ -236,7 +244,7 @@ async function processInitialAuth() {
 
     const authError = getAuthErrorMessageFromUrl();
     if (authError) {
-        showToast(`Erro na autenticacao: ${authError}`);
+        showAuthError(`Erro na autenticacao: ${authError}`);
         cleanAuthRedirectUrl();
         return false;
     }
@@ -256,7 +264,7 @@ async function processInitialAuth() {
             const fallbackSession = await withTimeout(window.supabase.auth.getSession(), 5000);
             if (!fallbackSession.data?.session) {
                 console.error('Erro ao converter codigo de autenticacao:', exchangeError);
-                showToast(exchangeError.message || 'Login recebido, mas nao foi possivel concluir a sessao.');
+                showAuthError(exchangeError.message || 'Login recebido, mas nao foi possivel concluir a sessao.');
                 return false;
             }
         }
@@ -264,7 +272,7 @@ async function processInitialAuth() {
 
     const { data, error } = await withTimeout(window.supabase.auth.getSession(), 8000);
     if (error) {
-        showToast(error.message || 'Nao foi possivel recuperar a sessao de login.');
+        showAuthError(error.message || 'Nao foi possivel recuperar a sessao de login.');
         return false;
     }
 
@@ -274,9 +282,13 @@ async function processInitialAuth() {
             await loadProtectedDataForCurrentUser();
         } catch (profileError) {
             console.error('Erro ao vincular perfil autenticado:', profileError);
-            showToast(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
+            showAuthError(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
             return false;
         }
+    }
+
+    if ((roleFromUrl || window.location.hash.includes('access_token')) && !data?.session?.user) {
+        showAuthError('O retorno do login chegou sem sessao ativa. Verifique a configuracao do provedor Google no Supabase/Google Cloud.');
     }
 
     const routed = checkAutoLogin();
@@ -285,14 +297,7 @@ async function processInitialAuth() {
 }
 
 async function handleEmailAuth(email, role) {
-    pendingLoginRole = role;
-    const options = { shouldCreateUser: true };
-    const redirectTo = getRedirectUrl(role);
-    if (redirectTo) options.emailRedirectTo = redirectTo;
-
-    const { error } = await withTimeout(window.supabase.auth.signInWithOtp({ email, options }));
-    if (error) throw error;
-    showToast('Enviamos um link de acesso. Abra seu e-mail para entrar.');
+    showToast('Login por e-mail desativado. Use Entrar com Gmail.');
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Aguarde...') {
@@ -335,21 +340,7 @@ async function handleGoogleLogin(role = 'client', button = null) {
 }
 
 async function handleAdminEmailLogin(button = null) {
-    const email = sanitizeString(document.getElementById('input-admin-email').value.trim()).toLowerCase();
-    if (!email) {
-        showToast('Digite o e-mail administrativo.');
-        return;
-    }
-
-    try {
-        setButtonLoading(button, true);
-        await handleEmailAuth(email, 'admin');
-    } catch (error) {
-        console.error('Erro no login admin:', error);
-        showToast(error.message || 'Erro ao enviar link administrativo.');
-    } finally {
-        setButtonLoading(button, false);
-    }
+    showToast('Login por e-mail desativado. Use Entrar com Gmail.');
 }
 
 async function supabaseUpdateUser(userId, updates) {
@@ -613,33 +604,12 @@ function goBackFromPayment() {
 // LOGIN FLOW
 // ==========================================
 async function handleLoginStep1() {
-    const emailInput = document.getElementById('input-login-email');
-    const email = sanitizeString(emailInput.value.trim()).toLowerCase();
-
-    if (!email) return showToast("Digite seu email.");
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return showToast("Digite um email válido.");
-
-    const btn = document.getElementById('btn-login-step1');
-    try {
-        setButtonLoading(btn, true);
-        await handleEmailAuth(email, 'client');
-    } catch (error) {
-        console.error('Erro no login:', error);
-        showToast(error.message || 'Erro ao enviar link de acesso.');
-    } finally {
-        setButtonLoading(btn, false);
-    }
+    await handleGoogleLogin('client', document.querySelector('#login-form-step1 button[type=submit]'));
 }
 
 function showLoginStep1(email) {
-    document.getElementById('login-form-step1').classList.remove('hidden');
-    document.getElementById('login-form-step2').classList.add('hidden');
-    
-    if (email) document.getElementById('input-login-email').value = email;
-    
-    document.getElementById('btn-login-step1').textContent = 'Enviar link por e-mail';
+    document.getElementById('login-form-step1')?.classList.remove('hidden');
+    document.getElementById('login-form-step2')?.classList.add('hidden');
 }
 
 function showLoginStep2() {

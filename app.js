@@ -160,9 +160,17 @@ async function syncAuthProfile() {
     else db.users.push(profile);
 
     db.currentUser = profile;
-    db.isAdmin = profile.role === 'admin';
+    db.isAdmin = isAdminProfile(profile);
     saveSession();
     return profile;
+}
+
+function isAdminProfile(profile) {
+    if (!profile) return false;
+
+    const role = String(profile.role || '').trim().toLowerCase();
+    const email = String(profile.email || '').trim().toLowerCase();
+    return role === 'admin' || email === ADMIN_EMAIL.toLowerCase();
 }
 
 function getRedirectUrl(role) {
@@ -359,7 +367,14 @@ async function processInitialAuth() {
         showAuthError('O retorno do login chegou sem sessao ativa. Verifique a configuracao do provedor Google no Supabase/Google Cloud.');
     }
 
-    const routed = checkAutoLogin();
+    let routed = false;
+    try {
+        routed = checkAutoLogin();
+    } catch (routeError) {
+        console.error('Erro ao encaminhar login autenticado:', routeError);
+        showAuthError(routeError.message || 'O login foi autenticado, mas o painel não conseguiu abrir.');
+        return false;
+    }
     if (routed) {
         renderAuthDebugPanel('');
         cleanAuthRedirectUrl();
@@ -542,6 +557,7 @@ function checkAutoLogin() {
     if (expectedRole === 'admin') {
         if (!db.isAdmin) {
             showAdminLogin();
+            setAuthStatus(null, 'Este e-mail não tem permissão administrativa.');
             showToast('Este e-mail não tem permissão administrativa.');
             localStorage.removeItem('espacoPatroas_pendingLoginRole');
             window.supabase.auth.signOut();
@@ -555,6 +571,7 @@ function checkAutoLogin() {
 
     if (db.isAdmin) {
         showAdminLogin();
+        setAuthStatus(null, 'Use a entrada administrativa para acessar este e-mail.');
         showToast('Use a entrada administrativa para acessar este e-mail.');
         localStorage.removeItem('espacoPatroas_pendingLoginRole');
         window.supabase.auth.signOut();
@@ -635,12 +652,18 @@ function updateBottomNav(activeTab) {
 
 function switchToAdminView() {
     hideAllPages();
+    setAuthStatus(null, '');
+    renderAuthDebugPanel('');
     document.getElementById('client-view').classList.add('hidden');
     document.getElementById('admin-view').classList.remove('hidden');
     updateManuProfilePhoto();
     startAdminAppointmentNotifications();
-    renderAdminDashboard();
-    showAdminSection('clients');
+    try {
+        showAdminSection('clients');
+    } catch (error) {
+        console.error('Erro ao abrir painel administrativo:', error);
+        showToast('O login foi concluído, mas houve erro ao abrir o painel.');
+    }
 }
 
 function toggleAdminMenu() {
@@ -856,6 +879,7 @@ async function handleLoginStep1() {
 function showLoginStep1(email) {
     document.getElementById('login-form-step1')?.classList.remove('hidden');
     document.getElementById('login-form-step2')?.classList.add('hidden');
+    setAuthStatus(null, '');
 }
 
 function showLoginStep2() {
@@ -904,6 +928,7 @@ async function goToLogin() {
     await clearSession();
     updateManuProfilePhoto();
     showLoginStep1();
+    renderAuthDebugPanel('');
     showPage('page-login');
 }
 
@@ -1602,8 +1627,29 @@ function showAdminSection(section) {
         currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
     }
 
-    if (section === 'clients') { renderAdminDashboard(); renderAdminClients(); }
-    else if (section === 'schedule') { renderAdminSchedule(); renderAdminAppointments(); renderNextAppointmentCard(); }
+    if (section === 'clients') {
+        renderAdminDashboard().catch(error => {
+            console.error('Erro ao renderizar dashboard admin:', error);
+            showToast('O painel abriu, mas o dashboard não carregou por completo.');
+        });
+        renderAdminClients().catch(error => {
+            console.error('Erro ao renderizar clientes admin:', error);
+            showToast('A lista de clientes não carregou por completo.');
+        });
+    }
+    else if (section === 'schedule') {
+        renderAdminSchedule().catch(error => {
+            console.error('Erro ao renderizar agenda admin:', error);
+            showToast('A agenda do painel não carregou por completo.');
+        });
+        renderAdminAppointments().catch(error => {
+            console.error('Erro ao renderizar agendamentos admin:', error);
+            showToast('A lista de agendamentos não carregou por completo.');
+        });
+        renderNextAppointmentCard().catch(error => {
+            console.error('Erro ao carregar próximo agendamento:', error);
+        });
+    }
     else if (section === 'portfolio') renderServicesGridAdmin();
     else if (section === 'gallery') renderAdminGallery();
     else if (section === 'settings') renderAdminSettings();

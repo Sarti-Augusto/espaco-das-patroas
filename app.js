@@ -127,6 +127,7 @@ async function clearSession() {
 
     db.currentUser = null;
     db.isAdmin = false;
+    stopAdminAppointmentNotifications();
 }
 
 // ==========================================
@@ -591,8 +592,14 @@ let currentAgendaMonth = new Date();
 let agendaView = 'month'; 
 let allAppointmentsCache = []; 
 let currentCalendarMonth = new Date();
+let adminNotificationInterval = null;
+let adminNotificationChannel = null;
+let adminNotificationBaselineReady = false;
+let knownAdminAppointmentIds = new Set();
+let currentAdminSection = 'clients';
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
+const ADMIN_NOTIFICATION_POLL_MS = 20000;
 
 // ==========================================
 // NAVIGATION E BOTTOM NAV
@@ -631,6 +638,7 @@ function switchToAdminView() {
     document.getElementById('client-view').classList.add('hidden');
     document.getElementById('admin-view').classList.remove('hidden');
     updateManuProfilePhoto();
+    startAdminAppointmentNotifications();
     renderAdminDashboard();
     showAdminSection('clients');
 }
@@ -645,6 +653,7 @@ function toggleAdminMenu() {
 async function switchToClientView() {
     document.getElementById('admin-view').classList.add('hidden');
     document.getElementById('client-view').classList.remove('hidden');
+    stopAdminAppointmentNotifications();
     cart = [];
     await clearSession();
     showLoginStep1();
@@ -666,6 +675,151 @@ function goToHome() {
     updateCartFab();
     updateBottomNav('home');
     window.scrollTo(0, 0);
+}
+
+function requestAdminBrowserNotificationPermission() {
+    if (!db.isAdmin || typeof Notification === 'undefined') return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+    }
+}
+
+function rememberKnownAdminAppointments(appointments = []) {
+    knownAdminAppointmentIds = new Set(
+        (appointments || [])
+            .map(appointment => appointment?.id)
+            .filter(Boolean)
+    );
+    adminNotificationBaselineReady = true;
+}
+
+function buildAdminAppointmentNotificationMessage(appointment) {
+    const serviceNames = formatServiceNames(appointment.services_names);
+    const dateLabel = formatDate(appointment.appointment_date);
+    const timeLabel = formatAppointmentTime(appointment.appointment_time);
+    return `Novo agendamento: ${serviceNames} em ${dateLabel} \u00e0s ${timeLabel}.`;
+}
+
+function notifyAdminInApp(appointment) {
+    const message = buildAdminAppointmentNotificationMessage(appointment);
+    showToast(message);
+
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+            new Notification('Espa\u00e7o das Patroas', {
+                body: message,
+                icon: 'icon-192x192.png'
+            });
+        } catch (error) {
+            console.warn('Nao foi possivel exibir notificacao do navegador:', error);
+        }
+    }
+}
+
+function handleAdminAppointmentNotification(appointment) {
+    if (!appointment?.id || appointment.status === 'Cancelado' || knownAdminAppointmentIds.has(appointment.id)) {
+        return;
+    }
+
+    knownAdminAppointmentIds.add(appointment.id);
+    db.appointmentsCache = [
+        appointment,
+        ...db.appointmentsCache.filter(existing => existing.id !== appointment.id)
+    ];
+    notifyAdminInApp(appointment);
+    refreshAdminAfterAppointmentNotification();
+}
+
+function refreshAdminAfterAppointmentNotification() {
+    if (!db.isAdmin) return;
+    renderAdminDashboard();
+
+    if (currentAdminSection === 'clients') {
+        renderAdminClients();
+        return;
+    }
+
+    if (currentAdminSection === 'schedule') {
+        renderAdminSchedule();
+        renderAdminAppointments();
+        renderNextAppointmentCard();
+    }
+}
+
+async function pollAdminAppointmentNotifications() {
+    if (!db.isAdmin) return;
+
+    try {
+        const appointments = await supabaseGetAppointments();
+        db.appointmentsCache = appointments;
+
+        if (!adminNotificationBaselineReady) {
+            rememberKnownAdminAppointments(appointments);
+            return;
+        }
+
+        const newAppointments = appointments.filter(app => !knownAdminAppointmentIds.has(app.id) && app.status !== 'Cancelado');
+        appointments.forEach(app => knownAdminAppointmentIds.add(app.id));
+
+        if (newAppointments.length === 0) return;
+
+        const latestAppointment = newAppointments
+            .slice()
+            .sort((a, b) => `${b.appointment_date}T${b.appointment_time}`.localeCompare(`${a.appointment_date}T${a.appointment_time}`))[0];
+
+        notifyAdminInApp(latestAppointment);
+        refreshAdminAfterAppointmentNotification();
+    } catch (error) {
+        console.error('Erro ao verificar novos agendamentos para o admin:', error);
+    }
+}
+
+function subscribeToAdminAppointmentNotifications() {
+    if (!db.isAdmin || !window.supabase?.channel) return;
+
+    adminNotificationChannel = window.supabase
+        .channel('admin-appointments')
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'appointments'
+        }, payload => {
+            handleAdminAppointmentNotification(payload?.new);
+        })
+        .subscribe(status => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn('Realtime de agendamentos do admin indisponivel. Mantendo fallback por polling.');
+            }
+        });
+}
+
+function startAdminAppointmentNotifications() {
+    if (!db.isAdmin) return;
+    stopAdminAppointmentNotifications();
+    requestAdminBrowserNotificationPermission();
+    rememberKnownAdminAppointments(db.appointmentsCache);
+    subscribeToAdminAppointmentNotifications();
+    pollAdminAppointmentNotifications();
+    adminNotificationInterval = window.setInterval(() => {
+        pollAdminAppointmentNotifications();
+    }, ADMIN_NOTIFICATION_POLL_MS);
+}
+
+function stopAdminAppointmentNotifications() {
+    if (adminNotificationInterval) {
+        clearInterval(adminNotificationInterval);
+        adminNotificationInterval = null;
+    }
+    if (adminNotificationChannel) {
+        if (window.supabase?.removeChannel) {
+            window.supabase.removeChannel(adminNotificationChannel).catch(() => {});
+        } else {
+            adminNotificationChannel.unsubscribe?.();
+        }
+        adminNotificationChannel = null;
+    }
+    adminNotificationBaselineReady = false;
+    knownAdminAppointmentIds = new Set();
 }
 
 function goToMyAppointments() {
@@ -776,7 +930,7 @@ function renderServices() {
     container.innerHTML = '';
 
     if (!db.services || db.services.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum servico disponivel.</p>';
+        container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum servi\u00e7o dispon\u00edvel.</p>';
         return;
     }
 
@@ -793,7 +947,7 @@ function renderServices() {
             </div>
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
-                    <div><h4 class="font-bold text-lg text-[#1c1b1b]">${sanitizeString(s.name || 'Servico')}</h4><p class="text-[#50453b] text-sm mt-1">${sanitizeString(s.description || s.desc || 'Servico premium')}</p></div>
+                    <div><h4 class="font-bold text-lg text-[#1c1b1b]">${sanitizeString(s.name || 'Servi\u00e7o')}</h4><p class="text-[#50453b] text-sm mt-1">${sanitizeString(s.description || s.desc || 'Servi\u00e7o premium')}</p></div>
                     <span class="font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
                 </div>
                 <button onclick="toggleCart('${s.id}')" class="w-full py-3 ${isInCart ? 'bg-green-500' : 'bg-gradient-to-br from-[#7f5353] to-[#d59f9f]'} text-white font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-transform">
@@ -807,7 +961,7 @@ function renderServices() {
 
 function toggleCart(id) {
     if (!db.currentUser) {
-        showToast("Faca login para agendar.");
+        showToast("Fa\u00e7a login para agendar.");
         showPage('page-login');
         return;
     }
@@ -1021,6 +1175,28 @@ async function getBookedSlots(dateStr) {
     }).filter(Boolean);
 }
 
+function parseTimeToMinutes(timeStr) {
+    const [rawHours, rawMinutes] = String(timeStr || '').split(':');
+    const hours = Number(rawHours);
+    const minutes = Number(rawMinutes);
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+    return (hours * 60) + minutes;
+}
+
+function formatMinutesToTime(totalMinutes) {
+    const safeMinutes = Math.max(0, Number(totalMinutes) || 0);
+    const hours = Math.floor(safeMinutes / 60);
+    const minutes = safeMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function getScheduleSlotDurationMinutes() {
+    const slotDurationHours = Number(db.scheduleConfig.slotDuration);
+    const safeDurationHours = Number.isFinite(slotDurationHours) && slotDurationHours > 0 ? slotDurationHours : 3;
+    return Math.max(30, Math.round(safeDurationHours * 60));
+}
+
 async function populateTimes() {
     const container = document.getElementById('times-container');
     if (!container) return;
@@ -1028,9 +1204,9 @@ async function populateTimes() {
 
     if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
 
-    const start = parseInt((db.scheduleConfig.start || '09:00').split(':')[0]);
-    const end = parseInt((db.scheduleConfig.end || '18:00').split(':')[0]);
-    const slotDuration = db.scheduleConfig.slotDuration || 3;
+    const startMinutes = parseTimeToMinutes(db.scheduleConfig.start || '09:00');
+    const endMinutes = parseTimeToMinutes(db.scheduleConfig.end || '18:00');
+    const slotDurationMinutes = getScheduleSlotDurationMinutes();
 
     let bookedSlots = [];
     try {
@@ -1040,10 +1216,16 @@ async function populateTimes() {
         showToast('Não foi possível conferir horários ocupados.');
     }
 
+    if (endMinutes <= startMinutes || slotDurationMinutes <= 0) {
+        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum hor\u00e1rio configurado para esta data.</p>';
+        return;
+    }
+
+    const bookedSlotsSet = new Set(bookedSlots);
     let renderedSlots = 0;
-    for (let h = start; h < end; h += slotDuration) {
-        const timeStr = `${h.toString().padStart(2, '0')}:00`;
-        const isBooked = bookedSlots.includes(timeStr);
+    for (let slotStartMinutes = startMinutes; slotStartMinutes + slotDurationMinutes <= endMinutes; slotStartMinutes += slotDurationMinutes) {
+        const timeStr = formatMinutesToTime(slotStartMinutes);
+        const isBooked = bookedSlotsSet.has(timeStr);
 
         const btn = document.createElement('button');
         btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
@@ -1071,6 +1253,30 @@ function selectTime(time, element) {
 // ==========================================
 // PAYMENT
 // ==========================================
+function isRecurringClient() {
+    if (!db.currentUser) return false;
+
+    const appointmentsCount = Number(db.currentUser.appointments_count) || 0;
+    return db.currentUser.type === 'Recorrente' || appointmentsCount > 0;
+}
+
+function updatePaymentOptionsForCurrentUser() {
+    const recurringClient = isRecurringClient();
+    const payment50Container = document.getElementById('payment-50-container');
+    const paymentFullContainer = document.getElementById('payment-full-container');
+    const paymentStoreContainer = document.getElementById('payment-store-container');
+    const paymentScheduledContainer = document.getElementById('payment-scheduled-container');
+
+    payment50Container?.classList.remove('hidden');
+    paymentFullContainer?.classList.toggle('hidden', !recurringClient);
+    paymentStoreContainer?.classList.toggle('hidden', !recurringClient);
+    paymentScheduledContainer?.classList.toggle('hidden', !recurringClient);
+
+    if (!recurringClient) {
+        selectPaymentMethod('50');
+    }
+}
+
 function goToPayment() {
     if (!selectedDate || !selectedTime) return showToast("Selecione data e horário.");
     if (!db.currentUser) return showPage('page-login');
@@ -1081,15 +1287,6 @@ function goToPayment() {
     document.getElementById('pay-service-name').textContent = serviceNames;
     document.getElementById('pay-service-date').textContent = `${formatDate(selectedDate)} às ${selectedTime}`;
     document.getElementById('pay-service-price').textContent = formatCurrency(totalPrice);
-
-    const payment50Container = document.getElementById('payment-50-container');
-    if (payment50Container) {
-        if (db.currentUser && (db.currentUser.type === 'Novo' || db.currentUser.appointments_count === 0)) {
-            payment50Container.classList.remove('hidden');
-        } else {
-            payment50Container.classList.add('hidden');
-        }
-    }
 
     document.getElementById('payment-50-info')?.classList.add('hidden');
     document.getElementById('payment-full-info')?.classList.add('hidden');
@@ -1108,6 +1305,7 @@ function goToPayment() {
 
     selectedPaymentMethod = null;
     document.querySelectorAll('input[name="payment"]').forEach(input => { input.checked = false; });
+    updatePaymentOptionsForCurrentUser();
     showPage('page-payment');
 }
 
@@ -1142,9 +1340,12 @@ function requestPaymentLink() {
 
 function requestCardPayment() {
     const totalPrice = getCartTotal();
+    const partialAmount = totalPrice / 2;
+    const paymentAmount = selectedPaymentMethod === '50' ? partialAmount : totalPrice;
+    const paymentLabel = selectedPaymentMethod === '50' ? 'do sinal (50%)' : 'via cartão';
     const services = getCartServiceNames();
 
-    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento via cartão.%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}`;
+    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento ${paymentLabel}.%0A%0AServiço: ${services}%0AValor a pagar: ${formatCurrency(paymentAmount)}`;
     window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
 }
 
@@ -1173,15 +1374,18 @@ async function copyTextToClipboard(text) {
 async function copyPixKey() {
     try {
         const copied = await copyTextToClipboard('27997559191');
-        showToast(copied ? 'Chave PIX copiada: 27997559191' : 'Não foi possível copiar. Chave PIX: 27997559191');
+        showToast(copied ? 'Chave PIX copiada: 27997559191' : 'N\u00e3o foi poss\u00edvel copiar. Chave PIX: 27997559191');
     } catch (error) {
-        showToast('Não foi possível copiar. Chave PIX: 27997559191');
+        showToast('N\u00e3o foi poss\u00edvel copiar. Chave PIX: 27997559191');
     }
 }
 
 async function confirmBooking() {
     if (!selectedPaymentMethod) return showToast("Selecione uma forma de pagamento.");
     if (!db.currentUser) return showPage('page-login');
+    if (!isRecurringClient() && selectedPaymentMethod !== '50') {
+        return showToast('Para novas clientes, o agendamento exige sinal de 50%.');
+    }
 
     let paymentDate = null;
     if (selectedPaymentMethod === 'scheduled') {
@@ -1197,7 +1401,7 @@ async function confirmBooking() {
         if (bookedSlots.includes(selectedTime)) {
             selectedTime = null;
             await populateTimes();
-            showToast('Esse horário acabou de ser reservado. Escolha outro.');
+            showToast('Esse hor\u00e1rio acabou de ser reservado. Escolha outro.');
             return;
         }
 
@@ -1216,6 +1420,11 @@ async function confirmBooking() {
             appointments_count: (db.currentUser.appointments_count || 0) + 1,
             type: 'Recorrente'
         });
+        db.currentUser = {
+            ...db.currentUser,
+            appointments_count: (db.currentUser.appointments_count || 0) + 1,
+            type: 'Recorrente'
+        };
 
         cart = [];
         renderSuccess({
@@ -1226,7 +1435,7 @@ async function confirmBooking() {
             paymentMethod: selectedPaymentMethod
         });
         showPage('page-success');
-        showToast('Agendamento realizado! Verifique o Google Calendar.');
+        showToast('Agendamento realizado! A administradora ser\u00e1 avisada pelo aplicativo.');
     } catch (error) {
         console.error('Erro ao confirmar:', error);
         showToast('Erro ao confirmar agendamento.');
@@ -1261,7 +1470,7 @@ function getCartServiceNames() {
 
 function formatServiceNames(value) {
     if (Array.isArray(value)) return value.join(', ');
-    if (!value) return 'Serviço';
+    if (!value) return 'Servi\u00e7o';
 
     const text = String(value).trim();
     if ((text.startsWith('[') && text.endsWith(']')) || (text.startsWith('"') && text.endsWith('"'))) {
@@ -1373,6 +1582,7 @@ async function renderMyAppointments() {
 // ADMIN NAVIGATION
 // ==========================================
 function showAdminSection(section) {
+    currentAdminSection = section;
     document.querySelectorAll('.adm-section').forEach(s => s.classList.add('hidden'));
     const el = document.getElementById(`adm-${section}`);
     if (el) el.classList.remove('hidden');
@@ -1577,16 +1787,16 @@ async function updateUserType(userId, newType) {
 async function deleteUser(userId) {
     const appointmentsForUser = db.appointmentsCache.filter(app => app.user_id === userId && app.status !== 'Cancelado');
     if (appointmentsForUser.length > 0) {
-        showToast("Nao exclua clientes com agendamentos vinculados. Cancele os agendamentos primeiro.");
+        showToast("N\u00e3o exclua clientes com agendamentos vinculados. Cancele os agendamentos primeiro.");
         return;
     }
-    if (!confirm("Tem certeza que deseja excluir este cliente? Esta acao nao pode ser desfeita.")) return;
+    if (!confirm("Tem certeza que deseja excluir este cliente? Esta a\u00e7\u00e3o n\u00e3o pode ser desfeita.")) return;
     try {
         const { error } = await window.supabase.from('users').delete().eq('id', userId);
         if (error) throw error;
         db.users = db.users.filter(u => u.id !== userId);
         renderAdminClients();
-        showToast("Cliente excluido.");
+        showToast("Cliente exclu\u00eddo.");
     } catch (error) {
         showToast('Erro ao excluir cliente.');
     }
@@ -1617,7 +1827,7 @@ async function renderAdminAppointments() {
             const statusColors = {
                 "Confirmado": "bg-emerald-100 text-emerald-700",
                 "Pendente": "bg-amber-100 text-amber-700",
-                "Concluido": "bg-gray-100 text-gray-600",
+                "Conclu\u00eddo": "bg-gray-100 text-gray-600",
                 "Cancelado": "bg-red-100 text-red-600"
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
@@ -1638,7 +1848,7 @@ async function renderAdminAppointments() {
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
                     <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
                         <option value="Confirmado" ${app.status === "Confirmado" ? "selected" : ""}>Confirmado</option>
-                        <option value="Concluido" ${app.status === "Concluido" ? "selected" : ""}>Concluido</option>
+                        <option value="Conclu\u00eddo" ${app.status === "Conclu\u00eddo" ? "selected" : ""}>Conclu\u00eddo</option>
                         <option value="Cancelado" ${app.status === "Cancelado" ? "selected" : ""}>Cancelado</option>
                     </select>
                 </td>`;
@@ -1870,7 +2080,7 @@ async function saveScheduleSettings() {
         const updates = {
             start_time: document.getElementById('config-start-time').value,
             end_time: document.getElementById('config-end-time').value,
-            slot_duration: parseInt(document.getElementById('config-slot-duration').value) || 3,
+            slot_duration: parseFloat(document.getElementById('config-slot-duration').value) || 3,
             available_days: selectedDays.length > 0 ? selectedDays : [1, 2, 3, 4, 5], 
             blocked_dates: db.scheduleConfig.blockedDates || []
         };
@@ -1919,10 +2129,10 @@ function renderServicesGridAdmin() {
 
         card.innerHTML = `
             <div class="aspect-square w-full overflow-hidden bg-[#ebe7e7] relative">
-                <img src="${displayImg}" alt="${sanitizeString(s.name || 'Servico')}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" onerror="this.src='${SERVICE_IMAGE_PLACEHOLDER}'">
+                <img src="${displayImg}" alt="${sanitizeString(s.name || 'Servi\u00e7o')}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" onerror="this.src='${SERVICE_IMAGE_PLACEHOLDER}'">
             </div>
             <div class="p-6 flex-1 flex flex-col">
-                <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${sanitizeString(s.name || 'Servico')}</h3>
+                <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${sanitizeString(s.name || 'Servi\u00e7o')}</h3>
                 <p class="font-body text-sm text-stone-500 leading-relaxed mb-4 flex-1">${sanitizeString(s.description || "")}</p>
                 <div class="flex justify-between items-center pt-4 border-t border-[#d4c4b7]/30">
                     <span class="font-headline text-2xl font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
@@ -1974,12 +2184,12 @@ function previewServiceImage(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
         if (!file.type.startsWith("image/")) {
-            showToast("Selecione um arquivo de imagem valido.");
+            showToast("Selecione um arquivo de imagem v\u00e1lido.");
             input.value = "";
             return;
         }
         if (file.size > 5 * 1024 * 1024) {
-            showToast("Imagem muito grande. Maximo 5MB.");
+            showToast("Imagem muito grande. M\u00e1ximo 5MB.");
             input.value = "";
             return;
         }
@@ -1999,15 +2209,15 @@ async function saveService() {
     const imgSrc = document.getElementById("service-preview-img")?.src || "";
     const isPlaceholder = imgSrc.includes("placeholder.com") || !imgSrc;
     const imageUrlToSave = isPlaceholder ? "" : imgSrc;
-    if (!name) return showToast("Digite o nome do servico.");
-    if (isNaN(price) || price < 0) return showToast("Digite um preco valido.");
+    if (!name) return showToast("Digite o nome do servi\u00e7o.");
+    if (isNaN(price) || price < 0) return showToast("Digite um pre\u00e7o v\u00e1lido.");
     try {
         if (id) {
             await supabaseUpdateService(id, { name, description: desc, price, image_url: imageUrlToSave });
-            showToast("Servico atualizado!");
+            showToast("Servi\u00e7o atualizado!");
         } else {
             await supabaseCreateService({ name, desc, price, img: imageUrlToSave });
-            showToast("Novo servico adicionado!");
+            showToast("Novo servi\u00e7o adicionado!");
         }
         await loadAllData();
         closeServiceModal();
@@ -2015,17 +2225,17 @@ async function saveService() {
         renderServices();
     } catch (error) {
         console.error("Erro ao salvar:", error);
-        showToast("Erro ao salvar servico.");
+        showToast("Erro ao salvar servi\u00e7o.");
     }
 }
 async function confirmDeleteService(id) {
-    if (!confirm("Tem certeza que deseja excluir este servico?")) return;
+    if (!confirm("Tem certeza que deseja excluir este servi\u00e7o?")) return;
     try {
         await supabaseDeleteService(id);
         await loadAllData();
         renderServicesGridAdmin();
         renderServices();
-        showToast("Servico removido.");
+        showToast("Servi\u00e7o removido.");
     } catch (error) {
         showToast('Erro ao remover.');
     }
@@ -2333,15 +2543,15 @@ function normalizeImageUrl(url) {
 // ==========================================
 function generateGoogleCalendarUrl(appointment) {
     const serviceNames = formatServiceNames(appointment.services_names);
-    const title = encodeURIComponent(`Espaco das Patroas - ${serviceNames}`);
+    const title = encodeURIComponent(`Espa\u00e7o das Patroas - ${serviceNames}`);
     const dateStr = appointment.appointment_date.replace(/-/g, "");
     const startTime = appointment.appointment_time.replace(":", "") + "00";
     const endHour = parseInt(appointment.appointment_time.split(":")[0]) + 3;
     const endTime = `${endHour.toString().padStart(2, "0")}${appointment.appointment_time.split(":")[1]}00`;
     const start = `${dateStr}T${startTime}`;
     const end = `${dateStr}T${endTime}`;
-    const details = encodeURIComponent(`Cliente: ${appointment.client_name || "Cliente"}\nServico: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || "Pendente"}`);
-    const location = encodeURIComponent("Espaco das Patroas");
+    const details = encodeURIComponent(`Cliente: ${appointment.client_name || "Cliente"}\nServi\u00e7o: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || "Pendente"}`);
+    const location = encodeURIComponent("Espa\u00e7o das Patroas");
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
 }
 

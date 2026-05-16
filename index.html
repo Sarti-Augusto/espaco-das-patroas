@@ -320,15 +320,24 @@
                                 </div>
                             </div>
                         </label>
-                        <div id="payment-50-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353]">
-                            <p class="text-sm text-[#50453b] mb-3">Para realizar o pagamento do sinal (50%), entre em contato pelo WhatsApp e solicite o link de pagamento.</p>
-                            <button onclick="requestPaymentLink()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <div id="payment-50-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
+                            <p class="text-sm text-[#50453b]">Para confirmar o sinal de 50%, escolha pagar por PIX ou solicite o link de cart&atilde;o.</p>
+                            <div class="flex items-center justify-between">
+                                <p class="text-xs text-[#50453b]">Chave PIX (Telefone):</p>
+                                <strong class="text-sm text-[#7f5353]">27 99755-5191</strong>
+                            </div>
+                            <button onclick="copyPixKey()" class="w-full py-3 rounded-xl bg-[#7f5353] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                                <span class="material-symbols-outlined">content_copy</span>
+                                Copiar Chave PIX
+                            </button>
+                            <button onclick="requestCardPayment()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
                                 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
-                                Solicitar Link de Pagamento
+                                Solicitar Link de Cart&atilde;o (50%)
                             </button>
                         </div>
                     </div>
 
+                    <div id="payment-full-container">
                     <label for="payment-full" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('full')">
                         <input id="payment-full" class="sr-only" name="payment" type="radio" value="full" onchange="selectPaymentMethod('full')"/>
                         <div class="flex items-center justify-between w-full">
@@ -358,7 +367,9 @@
                             </button>
                         </div>
                     </div>
+                    </div>
 
+                    <div id="payment-store-container">
                     <label for="payment-store" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('store')">
                         <input id="payment-store" class="sr-only" name="payment" type="radio" value="store" onchange="selectPaymentMethod('store')"/>
                         <div class="flex items-center justify-between w-full">
@@ -371,7 +382,9 @@
                             </div>
                         </div>
                     </label>
+                    </div>
 
+                    <div id="payment-scheduled-container">
                     <label for="payment-scheduled" class="group flex flex-col p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('scheduled')">
                         <input id="payment-scheduled" class="sr-only peer" name="payment" type="radio" value="scheduled" onchange="selectPaymentMethod('scheduled')"/>
                         <div class="flex items-center justify-between w-full">
@@ -396,6 +409,7 @@
                             <span class="material-symbols-outlined text-[14px]">info</span>
                             Selecione uma data para o pagamento (até 20 dias).
                         </p>
+                    </div>
                     </div>
                 </section>
 
@@ -677,7 +691,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Intervalo (horas)</label>
-                                    <input id="config-slot-duration" type="number" min="1" max="8" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="3"/>
+                                    <input id="config-slot-duration" type="number" min="0.5" max="8" step="0.5" class="w-full bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b] font-medium" value="3"/>
                                 </div>
                                 
                                 <div class="md:col-span-3 mt-4">

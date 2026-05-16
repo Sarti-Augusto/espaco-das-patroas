@@ -4,6 +4,8 @@
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NzM2NTUsImV4cCI6MjA5MTU0OTY1NX0.lHX5WB9WCY_pEgXcN4hvve3Pi5xqJgITbESrxiO3Nwk';
 const APP_BASE_URL = 'https://espaco-das-patroas.vercel.app';
+const SERVICE_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x400?text=Servico';
+const SERVICE_CARD_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Servico';
 
 let db = {
     users: [],
@@ -774,28 +776,28 @@ function renderServices() {
     container.innerHTML = '';
 
     if (!db.services || db.services.length === 0) {
-        container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum serviço disponível.</p>';
+        container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum servico disponivel.</p>';
         return;
     }
 
     db.services.forEach(s => {
         const isInCart = cart.some(item => item.id === s.id);
-        const imgSrc = s.image_url || s.img || '';
-        const displayImg = imgSrc || 'https://via.placeholder.com/400x300?text=Serviço';
+        const imgSrc = normalizeImageUrl(s.image_url || s.img || '');
+        const displayImg = imgSrc || SERVICE_CARD_PLACEHOLDER;
         
         const card = document.createElement('div');
         card.className = 'group bg-white rounded-xl overflow-hidden shadow-sm transition-all active:scale-[0.98] border border-gray-100';
         card.innerHTML = `
             <div class="aspect-[16/10] overflow-hidden bg-gray-50">
-                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/400x300?text=Serviço'">
+                <img src="${displayImg}" alt="${sanitizeString(s.name || 'Servico')}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='${SERVICE_CARD_PLACEHOLDER}'">
             </div>
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
-                    <div><h4 class="font-bold text-lg text-[#1c1b1b]">${s.name}</h4><p class="text-[#50453b] text-sm mt-1">${s.description || s.desc || 'Serviço premium'}</p></div>
+                    <div><h4 class="font-bold text-lg text-[#1c1b1b]">${sanitizeString(s.name || 'Servico')}</h4><p class="text-[#50453b] text-sm mt-1">${sanitizeString(s.description || s.desc || 'Servico premium')}</p></div>
                     <span class="font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
                 </div>
                 <button onclick="toggleCart('${s.id}')" class="w-full py-3 ${isInCart ? 'bg-green-500' : 'bg-gradient-to-br from-[#7f5353] to-[#d59f9f]'} text-white font-bold text-xs uppercase tracking-widest rounded-xl active:scale-95 transition-transform">
-                    ${isInCart ? '✓ Adicionado' : 'Agendar'}
+                    ${isInCart ? "[ok] Adicionado" : "Agendar"}
                 </button>
             </div>`;
         container.appendChild(card);
@@ -805,7 +807,7 @@ function renderServices() {
 
 function toggleCart(id) {
     if (!db.currentUser) {
-        showToast("Faça login para agendar.");
+        showToast("Faca login para agendar.");
         showPage('page-login');
         return;
     }
@@ -1503,7 +1505,10 @@ async function renderAdminClients() {
 
             const statusClass = u.status === 'pendente' ? 'text-error' : 'text-emerald-600';
             const statusDotClass = u.status === 'pendente' ? 'bg-error' : 'bg-emerald-500';
-            const profileImg = u.profile_image_url || 'https://via.placeholder.com/40';
+            const profileImg = normalizeImageUrl(u.profile_image_url || '') || 'https://via.placeholder.com/40';
+            const clientName = sanitizeString(u.name || 'Sem nome');
+            const clientEmail = sanitizeString(u.email || '-');
+            const lastServiceName = sanitizeString(lastApp ? formatServiceNames(lastApp.services_names) : '-');
 
             const tr = document.createElement('tr');
             tr.className = "group hover:bg-[#f7f3f2]/50 transition-colors";
@@ -1512,8 +1517,8 @@ async function renderAdminClients() {
                     <div class="flex items-center gap-4">
                         <img src="${profileImg}" class="w-10 h-10 rounded-full object-cover">
                         <div class="flex flex-col">
-                            <span class="font-bold text-[#1c1b1b]">${u.name || 'Sem nome'}</span>
-                            <span class="text-xs text-stone-400">${u.email}</span>
+                            <span class="font-bold text-[#1c1b1b]">${clientName}</span>
+                            <span class="text-xs text-stone-400">${clientEmail}</span>
                         </div>
                     </div>
                 </td>
@@ -1527,7 +1532,7 @@ async function renderAdminClients() {
                     </select>
                 </td>
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <span class="text-stone-500 font-medium">${lastApp ? formatServiceNames(lastApp.services_names) : '-'}</span>
+                    <span class="text-stone-500 font-medium">${lastServiceName}</span>
                     <div class="text-[10px] text-stone-400">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</div>
                 </td>
                 <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
@@ -1570,13 +1575,18 @@ async function updateUserType(userId, newType) {
 }
 
 async function deleteUser(userId) {
-    if (!confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) return;
+    const appointmentsForUser = db.appointmentsCache.filter(app => app.user_id === userId && app.status !== 'Cancelado');
+    if (appointmentsForUser.length > 0) {
+        showToast("Nao exclua clientes com agendamentos vinculados. Cancele os agendamentos primeiro.");
+        return;
+    }
+    if (!confirm("Tem certeza que deseja excluir este cliente? Esta acao nao pode ser desfeita.")) return;
     try {
         const { error } = await window.supabase.from('users').delete().eq('id', userId);
         if (error) throw error;
         db.users = db.users.filter(u => u.id !== userId);
         renderAdminClients();
-        showToast('Cliente excluído.');
+        showToast("Cliente excluido.");
     } catch (error) {
         showToast('Erro ao excluir cliente.');
     }
@@ -1605,10 +1615,10 @@ async function renderAdminAppointments() {
         for (const app of appointments) {
             const user = users?.find(u => u.id === app.user_id);
             const statusColors = {
-                'Confirmado': 'bg-emerald-100 text-emerald-700',
-                'Pendente': 'bg-amber-100 text-amber-700',
-                'Concluído': 'bg-gray-100 text-gray-600',
-                'Cancelado': 'bg-red-100 text-red-600'
+                "Confirmado": "bg-emerald-100 text-emerald-700",
+                "Pendente": "bg-amber-100 text-amber-700",
+                "Concluido": "bg-gray-100 text-gray-600",
+                "Cancelado": "bg-red-100 text-red-600"
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
 
@@ -1616,20 +1626,20 @@ async function renderAdminAppointments() {
             tr.className = "hover:bg-[#f7f3f2]/50 transition-colors";
             tr.innerHTML = `
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
-                    <span class="font-medium text-[#1c1b1b]">${user?.name || 'Cliente'}</span>
-                    <div class="text-xs text-stone-400">${user?.email || '-'}</div>
+                    <span class="font-medium text-[#1c1b1b]">${sanitizeString(user?.name || "Cliente")}</span>
+                    <div class="text-xs text-stone-400">${sanitizeString(user?.email || "-")}</div>
                 </td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatServiceNames(app.services_names)}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${sanitizeString(formatServiceNames(app.services_names))}</td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatDate(app.appointment_date)}</td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${app.appointment_time}</td>
+                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${sanitizeString(app.appointment_time)}</td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
-                    <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${app.status}</span>
+                    <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${sanitizeString(app.status)}</span>
                 </td>
                 <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
                     <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
-                        <option value="Confirmado" ${app.status === 'Confirmado' ? 'selected' : ''}>Confirmado</option>
-                        <option value="Concluído" ${app.status === 'Concluído' ? 'selected' : ''}>Concluído</option>
-                        <option value="Cancelado" ${app.status === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                        <option value="Confirmado" ${app.status === "Confirmado" ? "selected" : ""}>Confirmado</option>
+                        <option value="Concluido" ${app.status === "Concluido" ? "selected" : ""}>Concluido</option>
+                        <option value="Cancelado" ${app.status === "Cancelado" ? "selected" : ""}>Cancelado</option>
                     </select>
                 </td>`;
             tbody.appendChild(tr);
@@ -1904,16 +1914,16 @@ function renderServicesGridAdmin() {
         const card = document.createElement('div');
         card.className = 'bg-[#f1edec] rounded-2xl overflow-hidden group hover:shadow-2xl transition-all duration-500 flex flex-col';
 
-        const imgSrc = s.image_url || s.img || '';
-        const displayImg = imgSrc || 'https://via.placeholder.com/400x400?text=Serviço';
+        const imgSrc = normalizeImageUrl(s.image_url || s.img || "");
+        const displayImg = imgSrc || SERVICE_IMAGE_PLACEHOLDER;
 
         card.innerHTML = `
             <div class="aspect-square w-full overflow-hidden bg-[#ebe7e7] relative">
-                <img src="${displayImg}" alt="${s.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" onerror="this.src='https://via.placeholder.com/400x400?text=Serviço'">
+                <img src="${displayImg}" alt="${sanitizeString(s.name || 'Servico')}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" onerror="this.src='${SERVICE_IMAGE_PLACEHOLDER}'">
             </div>
             <div class="p-6 flex-1 flex flex-col">
-                <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${s.name}</h3>
-                <p class="font-body text-sm text-stone-500 leading-relaxed mb-4 flex-1">${s.description || ''}</p>
+                <h3 class="font-headline text-lg font-bold text-[#1c1b1b] mb-2">${sanitizeString(s.name || 'Servico')}</h3>
+                <p class="font-body text-sm text-stone-500 leading-relaxed mb-4 flex-1">${sanitizeString(s.description || "")}</p>
                 <div class="flex justify-between items-center pt-4 border-t border-[#d4c4b7]/30">
                     <span class="font-headline text-2xl font-extrabold text-[#7f5353]">${formatCurrency(s.price)}</span>
                     <div class="flex gap-2">
@@ -1935,7 +1945,7 @@ function openAddServiceModal() {
     document.getElementById('service-name').value = '';
     document.getElementById('service-desc').value = '';
     document.getElementById('service-price').value = '';
-    document.getElementById('service-preview-img').src = 'https://via.placeholder.com/400x400?text=Serviço';
+    document.getElementById("service-preview-img").src = SERVICE_IMAGE_PLACEHOLDER;
     document.getElementById('service-modal').classList.remove('hidden');
     document.getElementById('service-modal').classList.add('flex');
 }
@@ -1944,7 +1954,7 @@ function openEditServiceModal(id) {
     const service = db.services.find(s => s.id == id);
     if (!service) return;
 
-    const imgSrc = service.image_url || service.img || 'https://via.placeholder.com/400x400?text=Serviço';
+    const imgSrc = normalizeImageUrl(service.image_url || service.img || "") || SERVICE_IMAGE_PLACEHOLDER;
 
     document.getElementById('service-id').value = service.id;
     document.getElementById('service-name').value = service.name;
@@ -1963,59 +1973,59 @@ function closeServiceModal() {
 function previewServiceImage(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
+        if (!file.type.startsWith("image/")) {
+            showToast("Selecione um arquivo de imagem valido.");
+            input.value = "";
+            return;
+        }
         if (file.size > 5 * 1024 * 1024) {
-            showToast('Imagem muito grande. Máximo 5MB.');
+            showToast("Imagem muito grande. Maximo 5MB.");
+            input.value = "";
             return;
         }
         const reader = new FileReader();
         reader.onload = function(e) {
-            const preview = document.getElementById('service-preview-img');
+            const preview = document.getElementById("service-preview-img");
             if (preview) preview.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }
 }
-
 async function saveService() {
-    const id = document.getElementById('service-id').value;
-    const name = sanitizeString(document.getElementById('service-name').value.trim());
-    const desc = sanitizeString(document.getElementById('service-desc').value.trim());
-    const price = parseFloat(document.getElementById('service-price').value);
-    const imgSrc = document.getElementById('service-preview-img')?.src || '';
-
-    const isPlaceholder = imgSrc.includes('placeholder.com') || !imgSrc;
-    const imageUrlToSave = isPlaceholder ? '' : imgSrc;
-
-    if (!name) return showToast('Digite o nome do serviço.');
-    if (isNaN(price) || price < 0) return showToast('Digite um preço válido.');
-
+    const id = document.getElementById("service-id").value;
+    const name = sanitizeString(document.getElementById("service-name").value.trim());
+    const desc = sanitizeString(document.getElementById("service-desc").value.trim());
+    const price = parseFloat(document.getElementById("service-price").value);
+    const imgSrc = document.getElementById("service-preview-img")?.src || "";
+    const isPlaceholder = imgSrc.includes("placeholder.com") || !imgSrc;
+    const imageUrlToSave = isPlaceholder ? "" : imgSrc;
+    if (!name) return showToast("Digite o nome do servico.");
+    if (isNaN(price) || price < 0) return showToast("Digite um preco valido.");
     try {
         if (id) {
             await supabaseUpdateService(id, { name, description: desc, price, image_url: imageUrlToSave });
-            showToast('Serviço atualizado!');
+            showToast("Servico atualizado!");
         } else {
             await supabaseCreateService({ name, desc, price, img: imageUrlToSave });
-            showToast('Novo serviço adicionado!');
+            showToast("Novo servico adicionado!");
         }
-
         await loadAllData();
         closeServiceModal();
         renderServicesGridAdmin();
         renderServices();
     } catch (error) {
-        console.error('Erro ao salvar:', error);
-        showToast('Erro ao salvar serviço.');
+        console.error("Erro ao salvar:", error);
+        showToast("Erro ao salvar servico.");
     }
 }
-
 async function confirmDeleteService(id) {
-    if (!confirm('Tem certeza que deseja excluir este serviço?')) return;
+    if (!confirm("Tem certeza que deseja excluir este servico?")) return;
     try {
         await supabaseDeleteService(id);
         await loadAllData();
         renderServicesGridAdmin();
         renderServices();
-        showToast('Serviço removido.');
+        showToast("Servico removido.");
     } catch (error) {
         showToast('Erro ao remover.');
     }
@@ -2310,20 +2320,28 @@ function sanitizeString(str) {
     return div.innerHTML;
 }
 
+function normalizeImageUrl(url) {
+    const value = String(url || '').trim();
+    if (!value) return '';
+    if (value.startsWith('data:image/')) return value;
+    if (value.startsWith('https://') || value.startsWith('http://')) return value.replace(/["'()\\]/g, '');
+    return "";
+}
+
 // ==========================================
 // GOOGLE CALENDAR INTEGRATION
 // ==========================================
 function generateGoogleCalendarUrl(appointment) {
     const serviceNames = formatServiceNames(appointment.services_names);
-    const title = encodeURIComponent(`Espaço das Patroas - ${serviceNames}`);
-    const dateStr = appointment.appointment_date.replace(/-/g, '');
-    const startTime = appointment.appointment_time.replace(':', '') + '00';
-    const endHour = parseInt(appointment.appointment_time.split(':')[0]) + 3;
-    const endTime = `${endHour.toString().padStart(2, '0')}${appointment.appointment_time.split(':')[1]}00`;
+    const title = encodeURIComponent(`Espaco das Patroas - ${serviceNames}`);
+    const dateStr = appointment.appointment_date.replace(/-/g, "");
+    const startTime = appointment.appointment_time.replace(":", "") + "00";
+    const endHour = parseInt(appointment.appointment_time.split(":")[0]) + 3;
+    const endTime = `${endHour.toString().padStart(2, "0")}${appointment.appointment_time.split(":")[1]}00`;
     const start = `${dateStr}T${startTime}`;
     const end = `${dateStr}T${endTime}`;
-    const details = encodeURIComponent(`Cliente: ${appointment.client_name || 'Cliente'}\nServiço: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || 'Pendente'}`);
-    const location = encodeURIComponent('Espaço das Patroas');
+    const details = encodeURIComponent(`Cliente: ${appointment.client_name || "Cliente"}\nServico: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || "Pendente"}`);
+    const location = encodeURIComponent("Espaco das Patroas");
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
 }
 

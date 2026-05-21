@@ -66,6 +66,13 @@
             #adm-clients .grid-cols-3 { grid-template-columns: 1fr !important; }
             .admin-desktop-table { display: none !important; }
             .admin-mobile-list { display: flex !important; }
+            .agenda-toolbar { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+            .agenda-toolbar-actions { width: 100% !important; flex-direction: column !important; }
+            .agenda-view-switch { width: 100% !important; }
+            .agenda-view-switch button { flex: 1 1 0 !important; }
+            .agenda-nav-controls { width: 100% !important; }
+            .agenda-nav-controls select { flex: 1 1 auto !important; }
+            .agenda-nav-controls button { flex: 0 0 auto !important; }
             #dates-container { display: flex !important; overflow-x: auto !important; gap: 10px !important; padding-bottom: 15px !important; -webkit-overflow-scrolling: touch; }
             #dates-container > div { min-width: 70px !important; flex-shrink: 0 !important; }
             #times-container { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
@@ -669,18 +676,18 @@
 
             <section id="adm-schedule" class="adm-section hidden">
                 <div class="mb-8">
-                    <div class="flex items-baseline justify-between mb-6">
+                    <div class="agenda-toolbar flex items-baseline justify-between mb-6">
                         <div>
-                            <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Agenda Mensal</h2>
+                            <h2 id="agenda-view-title" class="font-headline text-3xl font-extrabold text-primary tracking-tight">Agenda Mensal</h2>
                             <p class="font-body text-stone-500 mt-1" id="agenda-month-label">Abril, 2026</p>
                         </div>
-                        <div class="flex gap-3">
-                            <div class="flex bg-surface-container-low p-1 rounded-xl">
+                        <div class="agenda-toolbar-actions flex gap-3">
+                            <div class="agenda-view-switch flex bg-surface-container-low p-1 rounded-xl">
                                 <button onclick="setAgendaView('month')" id="btn-view-month" class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest bg-surface-container-lowest text-primary shadow-sm">Mês</button>
                                 <button onclick="setAgendaView('week')" id="btn-view-week" class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-primary transition-colors">Semana</button>
                                 <button onclick="setAgendaView('day')" id="btn-view-day" class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-primary transition-colors">Dia</button>
                             </div>
-                            <div class="flex gap-1">
+                            <div class="agenda-nav-controls flex gap-1">
                                 <select id="agenda-year-select" onchange="changeAgendaYear(this.value)" class="bg-surface-container-low border-none rounded-xl px-3 py-2 text-xs font-bold"></select>
                                 <button onclick="prevAgendaMonth()" class="w-10 h-10 flex items-center justify-center bg-surface-container-lowest rounded-xl text-primary border border-outline-variant/10 shadow-sm">
                                     <span class="material-symbols-outlined text-sm">chevron_left</span>
@@ -693,7 +700,7 @@
                     </div>
 
                     <div id="agenda-calendar-view" class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 overflow-hidden">
-                        <div class="grid grid-cols-7 bg-[#f7f3f2] py-4 border-b border-[#d4c4b7]/10">
+                        <div id="agenda-calendar-header" class="grid grid-cols-7 bg-[#f7f3f2] py-4 border-b border-[#d4c4b7]/10">
                             <div class="text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase">Dom</div>
                             <div class="text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase">Seg</div>
                             <div class="text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase">Ter</div>

@@ -639,6 +639,7 @@ let selectedTime = null;
 let selectedPaymentMethod = null;
 let currentAgendaMonth = new Date();
 let agendaView = 'month'; 
+let agendaViewTouched = false;
 let allAppointmentsCache = []; 
 let currentCalendarMonth = new Date();
 let adminNotificationInterval = null;
@@ -2192,6 +2193,12 @@ function searchAppointments() {
 async function renderAdminSchedule() {
     if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
+    if (isAgendaMobileViewport() && !agendaViewTouched && agendaView === 'month') {
+        agendaView = 'week';
+    } else if (!isAgendaMobileViewport() && !agendaViewTouched && agendaView !== 'month') {
+        agendaView = 'month';
+    }
+
     const startInput = document.getElementById('config-start-time');
     const endInput = document.getElementById('config-end-time');
     const slotInput = document.getElementById('config-slot-duration');
@@ -2215,6 +2222,10 @@ async function renderAdminSchedule() {
     }
 
     await loadAppointmentsForCalendar();
+    const todayCount = getAppointmentsForDate(toDateInputValue(startOfDay(new Date()))).filter(app => app.status !== 'Cancelado').length;
+    const todayCountEl = document.getElementById('stat-today-count');
+    if (todayCountEl) todayCountEl.textContent = String(todayCount);
+    renderAgendaViewButtons();
     renderAgendaCalendar();
     updateAgendaMonthLabel();
 }
@@ -2347,6 +2358,280 @@ function setAgendaView(view) {
     document.getElementById('btn-view-week').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'week' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
     document.getElementById('btn-view-day').className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${view === 'day' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
     renderAgendaCalendar();
+}
+
+function isAgendaMobileViewport() {
+    return window.innerWidth <= 768;
+}
+
+function startOfDay(date) {
+    const normalized = new Date(date || new Date());
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+}
+
+function addDays(date, amount) {
+    const shifted = startOfDay(date);
+    shifted.setDate(shifted.getDate() + amount);
+    return shifted;
+}
+
+function getWeekStart(date) {
+    const weekStart = startOfDay(date);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    return weekStart;
+}
+
+function getAppointmentsForDate(dateStr) {
+    return allAppointmentsCache.filter(app => app.appointment_date === dateStr);
+}
+
+function sortAppointmentsByTime(appointments) {
+    return [...appointments].sort((a, b) => formatAppointmentTime(a.appointment_time).localeCompare(formatAppointmentTime(b.appointment_time)));
+}
+
+function renderAgendaViewButtons() {
+    const monthBtn = document.getElementById('btn-view-month');
+    const weekBtn = document.getElementById('btn-view-week');
+    const dayBtn = document.getElementById('btn-view-day');
+    if (monthBtn) monthBtn.className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${agendaView === 'month' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+    if (weekBtn) weekBtn.className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${agendaView === 'week' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+    if (dayBtn) dayBtn.className = `px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest ${agendaView === 'day' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-stone-400 hover:text-primary transition-colors'}`;
+}
+
+function renderAgendaYearSelect(year) {
+    const yearSelect = document.getElementById('agenda-year-select');
+    if (!yearSelect) return;
+
+    yearSelect.innerHTML = '';
+    for (let currentYear = year - 2; currentYear <= year + 2; currentYear++) {
+        const option = document.createElement('option');
+        option.value = currentYear;
+        option.textContent = currentYear;
+        if (currentYear === year) option.selected = true;
+        yearSelect.appendChild(option);
+    }
+}
+
+function renderAgendaCalendar() {
+    const grid = document.getElementById('agenda-calendar-grid');
+    if (!grid) return;
+
+    const header = document.getElementById('agenda-calendar-header');
+    const displayDate = startOfDay(currentAgendaMonth || new Date());
+
+    renderAgendaYearSelect(displayDate.getFullYear());
+    grid.innerHTML = '';
+
+    if (agendaView === 'month') {
+        if (header) header.classList.remove('hidden');
+        renderAgendaMonthView(grid, displayDate);
+        return;
+    }
+
+    if (header) header.classList.add('hidden');
+
+    if (agendaView === 'week') {
+        renderAgendaWeekView(grid, displayDate);
+        return;
+    }
+
+    renderAgendaDayView(grid, displayDate);
+}
+
+function renderAgendaMonthView(grid, displayDate) {
+    grid.className = 'grid grid-cols-7';
+    const year = displayDate.getFullYear();
+    const month = displayDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+    const today = startOfDay(new Date());
+    const monthAppointments = getAppointmentsForMonth(year, month);
+
+    for (let i = 0; i < startDayOfWeek; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+        grid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const currentDate = new Date(year, month, day);
+        currentDate.setHours(0, 0, 0, 0);
+        const dateStr = toDateInputValue(currentDate);
+        const dayAppointments = monthAppointments.filter(app => app.appointment_date === dateStr);
+        const isToday = currentDate.getTime() === today.getTime();
+        const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
+        const isPast = currentDate < today;
+
+        const cell = document.createElement('div');
+        cell.className = `h-24 border-r border-b border-[#d4c4b7]/10 p-2 ${isToday ? 'bg-[#d59f9f]/10' : 'bg-white'} ${isBlocked ? 'opacity-50' : ''} ${isPast ? 'opacity-40' : ''}`;
+
+        let appointmentsHtml = '';
+        dayAppointments.slice(0, 2).forEach(app => {
+            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${formatAppointmentTime(app.appointment_time)} - ${formatServiceNames(app.services_names).split(',')[0] || 'Servico'}</div>`;
+        });
+        if (dayAppointments.length > 2) {
+            appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
+        }
+
+        cell.innerHTML = `
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-xs font-bold ${isToday ? 'text-primary' : 'text-stone-500'}">${day}</span>
+                ${isBlocked ? '<span class="text-[8px] text-red-400">Bloqueado</span>' : ''}
+            </div>
+            <div class="space-y-1">${appointmentsHtml}</div>
+        `;
+
+        grid.appendChild(cell);
+    }
+
+    const totalCells = startDayOfWeek + daysInMonth;
+    const remainingCells = 7 - (totalCells % 7);
+    if (remainingCells < 7) {
+        for (let i = 0; i < remainingCells; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'h-24 bg-[#f7f3f2]/30 border-r border-b border-[#d4c4b7]/10';
+            grid.appendChild(empty);
+        }
+    }
+}
+
+function renderAgendaWeekView(grid, referenceDate) {
+    grid.className = 'grid grid-cols-1 gap-3 p-4 bg-[#fdf8f8]';
+    const weekStart = getWeekStart(referenceDate);
+
+    for (let offset = 0; offset < 7; offset++) {
+        grid.appendChild(buildAgendaPeriodCard(addDays(weekStart, offset)));
+    }
+}
+
+function renderAgendaDayView(grid, referenceDate) {
+    grid.className = 'grid grid-cols-1 gap-3 p-4 bg-[#fdf8f8]';
+    grid.appendChild(buildAgendaPeriodCard(referenceDate, true));
+}
+
+function buildAgendaPeriodCard(currentDate, expanded = false) {
+    const dateStr = toDateInputValue(currentDate);
+    const today = startOfDay(new Date());
+    const isToday = currentDate.getTime() === today.getTime();
+    const isBlocked = db.scheduleConfig.blockedDates?.includes(dateStr);
+    const isPast = currentDate < today;
+    const weekdayLabel = currentDate.toLocaleDateString('pt-BR', { weekday: expanded ? 'long' : 'short' });
+    const appointments = sortAppointmentsByTime(getAppointmentsForDate(dateStr));
+
+    const card = document.createElement('article');
+    card.className = `rounded-2xl border border-[#d4c4b7]/10 p-4 shadow-sm ${isToday ? 'bg-[#fff4f4]' : 'bg-white'} ${isBlocked ? 'opacity-60' : ''} ${isPast ? 'opacity-75' : ''}`;
+
+    let appointmentsHtml = appointments.map(app => `
+        <div class="rounded-xl border border-[#d4c4b7]/10 bg-white px-3 py-3">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="font-bold text-[#1c1b1b]">${formatAppointmentTime(app.appointment_time)}</p>
+                    <p class="text-sm text-[#50453b] mt-1">${sanitizeString(formatServiceNames(app.services_names))}</p>
+                </div>
+                <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase ${getAgendaStatusPillClass(app.status)}">${sanitizeString(app.status)}</span>
+            </div>
+        </div>
+    `).join('');
+
+    if (!appointmentsHtml) {
+        appointmentsHtml = `<div class="rounded-xl bg-[#f7f3f2] px-3 py-4 text-sm text-stone-500">${isBlocked ? 'Data bloqueada para atendimento.' : 'Nenhum agendamento neste periodo.'}</div>`;
+    }
+
+    card.innerHTML = `
+        <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-widest ${isToday ? 'text-primary' : 'text-stone-400'}">${weekdayLabel}</p>
+                <p class="text-lg font-extrabold text-[#1c1b1b] mt-1">${formatDate(dateStr)}</p>
+            </div>
+            <div class="text-right">
+                ${isToday ? '<span class="inline-flex rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">Hoje</span>' : ''}
+                ${isBlocked ? '<span class="inline-flex rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold uppercase text-red-500 ml-2">Bloqueado</span>' : ''}
+                <p class="text-xs text-stone-400 mt-2">${appointments.length} agendamento(s)</p>
+            </div>
+        </div>
+        <div class="space-y-3">${appointmentsHtml}</div>
+    `;
+
+    return card;
+}
+
+function getAgendaStatusPillClass(status) {
+    const pillClasses = {
+        Confirmado: 'bg-emerald-100 text-emerald-700',
+        Pendente: 'bg-amber-100 text-amber-700',
+        Concluido: 'bg-gray-100 text-gray-600',
+        'Concluído': 'bg-gray-100 text-gray-600',
+        Cancelado: 'bg-red-100 text-red-600'
+    };
+
+    return pillClasses[status] || 'bg-gray-100 text-gray-600';
+}
+
+function updateAgendaMonthLabel() {
+    const label = document.getElementById('agenda-month-label');
+    const title = document.getElementById('agenda-view-title');
+    if (!label) return;
+
+    const referenceDate = startOfDay(currentAgendaMonth || new Date());
+
+    if (agendaView === 'week') {
+        const weekStart = getWeekStart(referenceDate);
+        const weekEnd = addDays(weekStart, 6);
+        if (title) title.textContent = 'Agenda da Semana';
+        label.textContent = `${formatDate(toDateInputValue(weekStart))} ate ${formatDate(toDateInputValue(weekEnd))}`;
+        return;
+    }
+
+    if (agendaView === 'day') {
+        if (title) title.textContent = 'Agenda do Dia';
+        label.textContent = referenceDate.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+        return;
+    }
+
+    if (title) title.textContent = 'Agenda Mensal';
+    const monthNames = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    label.textContent = `${monthNames[referenceDate.getMonth()]}, ${referenceDate.getFullYear()}`;
+}
+
+function prevAgendaMonth() {
+    if (agendaView === 'week') {
+        currentAgendaMonth = addDays(currentAgendaMonth, -7);
+    } else if (agendaView === 'day') {
+        currentAgendaMonth = addDays(currentAgendaMonth, -1);
+    } else {
+        currentAgendaMonth = new Date(currentAgendaMonth.getFullYear(), currentAgendaMonth.getMonth() - 1, 1);
+    }
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function nextAgendaMonth() {
+    if (agendaView === 'week') {
+        currentAgendaMonth = addDays(currentAgendaMonth, 7);
+    } else if (agendaView === 'day') {
+        currentAgendaMonth = addDays(currentAgendaMonth, 1);
+    } else {
+        currentAgendaMonth = new Date(currentAgendaMonth.getFullYear(), currentAgendaMonth.getMonth() + 1, 1);
+    }
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function changeAgendaYear(year) {
+    currentAgendaMonth = new Date(parseInt(year, 10), currentAgendaMonth.getMonth(), currentAgendaMonth.getDate() || 1);
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
+}
+
+function setAgendaView(view) {
+    agendaViewTouched = true;
+    agendaView = view;
+    renderAgendaViewButtons();
+    renderAgendaCalendar();
+    updateAgendaMonthLabel();
 }
 
 function addBlockedDate() {

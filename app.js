@@ -703,6 +703,7 @@ function toggleAdminMenu() {
     const menu = document.getElementById('admin-mobile-menu');
     if (menu) {
         menu.classList.toggle('hidden');
+        document.body.style.overflow = menu.classList.contains('hidden') ? '' : 'hidden';
     }
 }
 
@@ -991,7 +992,7 @@ function showAdminLogin() {
 
 function updateManuProfilePhoto() {
     const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
-    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic'];
+    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic', 'admin-mobile-menu-avatar'];
     pics.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.src = src;
@@ -1754,17 +1755,29 @@ function showAdminSection(section) {
     const titles = { clients: 'Gestão de Clientes', schedule: 'Agenda', portfolio: 'Serviços', gallery: 'Catálogo', settings: 'Configurações' };
     const titleEl = document.getElementById('admin-page-title');
     if (titleEl) titleEl.textContent = titles[section] || 'Admin';
+    const mobileTitleEl = document.getElementById('admin-mobile-title');
+    if (mobileTitleEl) mobileTitleEl.textContent = titles[section] || 'Admin';
+    const mobileSubtitleEl = document.getElementById('admin-mobile-subtitle');
+    if (mobileSubtitleEl) mobileSubtitleEl.textContent = section === 'schedule' ? 'Visão rápida da agenda' : 'Painel administrativo';
 
     document.querySelectorAll('.adm-nav-link').forEach(link => {
         link.classList.remove('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
         link.classList.add('text-stone-500');
     });
 
-    const currentLink = document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}')"]`) || document.querySelector(`.adm-nav-link[onclick="showAdminSection('${section}'); toggleAdminMenu();"]`);
-    if (currentLink) {
+    document.querySelectorAll(`.adm-nav-link[data-admin-section="${section}"]`).forEach(currentLink => {
         currentLink.classList.remove('text-stone-500');
         currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
-    }
+    });
+
+    document.querySelectorAll('.adm-mobile-chip').forEach(chip => {
+        chip.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'border-transparent', 'shadow-sm');
+        chip.classList.add('bg-white', 'text-stone-500', 'border', 'border-[#d4c4b7]/20');
+    });
+    document.querySelectorAll(`.adm-mobile-chip[data-admin-section="${section}"]`).forEach(chip => {
+        chip.classList.remove('bg-white', 'text-stone-500', 'border', 'border-[#d4c4b7]/20');
+        chip.classList.add('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'border-transparent', 'shadow-sm');
+    });
 
     if (section === 'clients') {
         refreshAdminClientsSection().catch(error => {

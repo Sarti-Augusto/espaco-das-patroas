@@ -66,6 +66,8 @@
             #adm-clients .grid-cols-3 { grid-template-columns: 1fr !important; }
             .admin-desktop-table { display: none !important; }
             .admin-mobile-list { display: flex !important; }
+            .admin-mobile-subnav { display: block !important; }
+            .admin-shell-main { padding-top: 8.75rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
             .agenda-toolbar { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
             .agenda-toolbar-actions { width: 100% !important; flex-direction: column !important; }
             .agenda-view-switch { width: 100% !important; }
@@ -529,23 +531,23 @@
                 <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-1">Administração</p>
             </div>
             <nav class="flex-1 px-4 space-y-2">
-                <a onclick="showAdminSection('clients')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <a data-admin-section="clients" onclick="showAdminSection('clients')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">group</span>
                     <span>Clientes</span>
                 </a>
-                <a onclick="showAdminSection('schedule')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <a data-admin-section="schedule" onclick="showAdminSection('schedule')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">calendar_month</span>
                     <span>Agenda</span>
                 </a>
-                <a onclick="showAdminSection('portfolio')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <a data-admin-section="portfolio" onclick="showAdminSection('portfolio')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">content_cut</span>
                     <span>Serviços</span>
                 </a>
-                <a onclick="showAdminSection('gallery')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <a data-admin-section="gallery" onclick="showAdminSection('gallery')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">photo_library</span>
                     <span>Catálogo</span>
                 </a>
-                <a onclick="showAdminSection('settings')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <a data-admin-section="settings" onclick="showAdminSection('settings')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">settings</span>
                     <span>Configurações</span>
                 </a>
@@ -563,15 +565,28 @@
                 <button onclick="toggleAdminMenu()" class="p-2 text-[#7f5353]">
                     <span class="material-symbols-outlined">menu</span>
                 </button>
-                <h1 class="text-lg font-bold tracking-tighter text-[#7f5353]">Admin</h1>
+                <div>
+                    <h1 id="admin-mobile-title" class="text-lg font-bold tracking-tighter text-[#7f5353]">Clientes</h1>
+                    <p id="admin-mobile-subtitle" class="text-[10px] uppercase tracking-widest text-stone-400">Painel administrativo</p>
+                </div>
             </div>
             <div class="flex items-center gap-3">
                 <img id="admin-avatar" src="https://via.placeholder.com/150?text=Manu" alt="Avatar" class="w-8 h-8 rounded-full object-cover">
             </div>
         </header>
 
+        <div class="admin-mobile-subnav hidden lg:hidden fixed top-16 left-0 right-0 z-40 bg-[#fdf8f8]/92 backdrop-blur-md border-b border-[#d4c4b7]/15">
+            <div class="px-4 py-3 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <button data-admin-section="clients" onclick="showAdminSection('clients')" class="adm-mobile-chip whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest bg-white text-stone-500 border border-[#d4c4b7]/20">Clientes</button>
+                <button data-admin-section="schedule" onclick="showAdminSection('schedule')" class="adm-mobile-chip whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest bg-white text-stone-500 border border-[#d4c4b7]/20">Agenda</button>
+                <button data-admin-section="portfolio" onclick="showAdminSection('portfolio')" class="adm-mobile-chip whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest bg-white text-stone-500 border border-[#d4c4b7]/20">Serviços</button>
+                <button data-admin-section="gallery" onclick="showAdminSection('gallery')" class="adm-mobile-chip whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest bg-white text-stone-500 border border-[#d4c4b7]/20">Catálogo</button>
+                <button data-admin-section="settings" onclick="showAdminSection('settings')" class="adm-mobile-chip whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest bg-white text-stone-500 border border-[#d4c4b7]/20">Configurações</button>
+            </div>
+        </div>
+
         <div id="admin-mobile-menu" class="lg:hidden hidden fixed inset-0 z-50 bg-black/50" onclick="toggleAdminMenu()">
-            <div class="bg-[#fdf8f8] w-72 h-full p-6" onclick="event.stopPropagation()">
+            <div class="bg-[#fdf8f8] w-72 h-full p-6 flex flex-col" onclick="event.stopPropagation()">
                 <div class="flex justify-between items-center mb-8">
                     <div>
                         <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
@@ -581,24 +596,33 @@
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                <nav class="space-y-2">
-                    <a onclick="showAdminSection('clients'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                <div class="rounded-2xl bg-[#f7f3f2] p-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <img src="https://via.placeholder.com/150?text=Manu" alt="Avatar admin" class="w-12 h-12 rounded-full object-cover" id="admin-mobile-menu-avatar">
+                        <div>
+                            <p class="text-[10px] uppercase tracking-widest text-stone-400">Sessão atual</p>
+                            <p class="font-bold text-[#1c1b1b] mt-1">Manu Sarti</p>
+                        </div>
+                    </div>
+                </div>
+                <nav class="space-y-2 flex-1">
+                    <a data-admin-section="clients" onclick="showAdminSection('clients'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">group</span>
                         <span>Clientes</span>
                     </a>
-                    <a onclick="showAdminSection('schedule'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <a data-admin-section="schedule" onclick="showAdminSection('schedule'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">calendar_month</span>
                         <span>Agenda</span>
                     </a>
-                    <a onclick="showAdminSection('portfolio'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <a data-admin-section="portfolio" onclick="showAdminSection('portfolio'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">content_cut</span>
                         <span>Serviços</span>
                     </a>
-                    <a onclick="showAdminSection('gallery'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <a data-admin-section="gallery" onclick="showAdminSection('gallery'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">photo_library</span>
                         <span>Catálogo</span>
                     </a>
-                    <a onclick="showAdminSection('settings'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
+                    <a data-admin-section="settings" onclick="showAdminSection('settings'); toggleAdminMenu();" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                         <span class="material-symbols-outlined">settings</span>
                         <span>Configurações</span>
                     </a>
@@ -626,7 +650,7 @@
                 </div>
             </header>
 
-            <main class="flex-1 pt-20 lg:pt-24 pb-12 px-4 lg:px-12 w-full overflow-x-hidden">
+            <main class="admin-shell-main flex-1 pt-20 lg:pt-24 pb-12 px-4 lg:px-12 w-full overflow-x-hidden">
 
             <section id="adm-clients" class="adm-section">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -164,6 +164,50 @@
             return data || [];
         },
 
+        async fetchUpcomingConfirmedAppointments(startDate, limit = 1, includeUserPhone = false) {
+            const client = getClient();
+            const userFields = includeUserPhone ? 'name, phone' : 'name';
+            const { data, error } = await client
+                .from('appointments')
+                .select(`*, users(${userFields})`)
+                .eq('status', 'Confirmado')
+                .gte('appointment_date', startDate)
+                .order('appointment_date', { ascending: true })
+                .order('appointment_time', { ascending: true })
+                .limit(limit);
+
+            if (error) throw error;
+            return data || [];
+        },
+
+        async deleteUser(userId) {
+            const client = getClient();
+            const { error } = await client.from('users').delete().eq('id', userId);
+            if (error) throw error;
+        },
+
+        async fetchAdminAppointmentsAndUsers() {
+            const client = getClient();
+            const [appointmentsData, usersData] = await Promise.all([
+                client.from('appointments').select('*').order('appointment_date', { ascending: false }),
+                client.from('users').select('*')
+            ]);
+
+            if (appointmentsData.error) throw appointmentsData.error;
+            if (usersData.error) throw usersData.error;
+
+            return {
+                appointments: appointmentsData.data || [],
+                users: usersData.data || []
+            };
+        },
+
+        async updateAppointmentStatus(appointmentId, status) {
+            const client = getClient();
+            const { error } = await client.from('appointments').update({ status }).eq('id', appointmentId);
+            if (error) throw error;
+        },
+
         async saveGalleryItem(payload) {
             const client = getClient();
             const { id, title, description, imageUrl } = payload;

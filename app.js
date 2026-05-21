@@ -1855,13 +1855,7 @@ async function renderAdminDashboard() {
 
 async function renderNextAppointmentCard() {
     const hojeStr = toDateInputValue(new Date());
-    const { data: proximos } = await window.supabase.from('appointments')
-        .select('*, users(name)')
-        .eq('status', 'Confirmado')
-        .gte('appointment_date', hojeStr)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true })
-        .limit(1);
+    const proximos = await getSupabaseService().fetchUpcomingConfirmedAppointments(hojeStr);
 
     const infoEl = document.getElementById('next-appointment-info');
     if (proximos && proximos.length > 0) {
@@ -1877,15 +1871,7 @@ async function showNextAppointmentDetails() {
     const hojeStr = toDateInputValue(new Date());
 
     try {
-        const { data: proximos, error } = await window.supabase.from('appointments')
-            .select('*, users(name, phone)')
-            .eq('status', 'Confirmado')
-            .gte('appointment_date', hojeStr)
-            .order('appointment_date', { ascending: true })
-            .order('appointment_time', { ascending: true })
-            .limit(1);
-
-        if (error) throw error;
+        const proximos = await getSupabaseService().fetchUpcomingConfirmedAppointments(hojeStr, 1, true);
 
         if (proximos && proximos.length > 0) {
             const app = proximos[0];
@@ -2079,8 +2065,7 @@ async function deleteUser(userId) {
     }
     if (!confirm("Tem certeza que deseja excluir este cliente? Esta a\u00e7\u00e3o n\u00e3o pode ser desfeita.")) return;
     try {
-        const { error } = await window.supabase.from('users').delete().eq('id', userId);
-        if (error) throw error;
+        await getSupabaseService().deleteUser(userId);
         db.users = db.users.filter(u => u.id !== userId);
         await renderAdminDashboard();
         await renderAdminClients();
@@ -2101,10 +2086,7 @@ async function renderAdminAppointments() {
     if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-[#d4c4b7]/10 bg-[#f7f3f2] px-4 py-6 text-center text-sm text-stone-500">Carregando agendamentos...</div>';
 
     try {
-        const { data: appointments, error: appointmentsError } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
-        if (appointmentsError) throw appointmentsError;
-        const { data: users, error: usersError } = await window.supabase.from('users').select('*');
-        if (usersError) throw usersError;
+        const { appointments, users } = await getSupabaseService().fetchAdminAppointmentsAndUsers();
         db.appointmentsCache = appointments || [];
 
         if (!appointments || appointments.length === 0) {
@@ -2206,8 +2188,7 @@ async function renderAdminAppointments() {
 async function updateAppointmentStatus(appointmentId, newStatus) {
     try {
         const appointment = db.appointmentsCache.find(a => a.id === appointmentId);
-        const { error } = await window.supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
-        if (error) throw error;
+        await getSupabaseService().updateAppointmentStatus(appointmentId, newStatus);
 
         const idx = db.appointmentsCache.findIndex(a => a.id === appointmentId);
         if (idx !== -1) db.appointmentsCache[idx].status = newStatus;
@@ -2274,8 +2255,7 @@ async function renderAdminSchedule() {
 
 async function loadAppointmentsForCalendar() {
     try {
-        const { data } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
-        allAppointmentsCache = data || [];
+        allAppointmentsCache = await getSupabaseService().fetchAppointments();
     } catch (error) {
         allAppointmentsCache = [];
     }

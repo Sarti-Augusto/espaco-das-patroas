@@ -853,6 +853,14 @@ function getBookingPayment() {
     return window.bookingPayment;
 }
 
+function getBookingConfirmation() {
+    if (!window.bookingConfirmation) {
+        throw new Error('booking-confirmation.js not initialized.');
+    }
+
+    return window.bookingConfirmation;
+}
+
 function getCartItems() {
     return getBookingFlow().getCart();
 }
@@ -1512,79 +1520,40 @@ function isRecurringClient() {
 
 async function confirmBooking() {
     const confirmButton = document.getElementById('confirm-booking-button');
-    if (!selectedPaymentMethod) {
-        setInlineStatus('payment-inline-status', 'Selecione uma forma de pagamento para continuar.', 'error');
-        return;
-    }
-    if (!db.currentUser) return showPage('page-login');
-    if (!isRecurringClient() && selectedPaymentMethod !== '50') {
-        setInlineStatus('payment-inline-status', 'Para novas clientes, o agendamento exige sinal de 50%.', 'warning');
+    if (!db.currentUser) {
+        showPage('page-login');
         return;
     }
 
-    let paymentDate = null;
-    if (selectedPaymentMethod === 'scheduled') {
-        paymentDate = document.getElementById('input-pay-date').value;
-        if (!paymentDate) {
-            setInlineStatus('payment-inline-status', 'Selecione a data para o pagamento programado.', 'error');
-            return;
-        }
+    const result = await getBookingConfirmation().confirmBookingFlow({
+        currentUser: db.currentUser,
+        selectedPaymentMethod,
+        selectedDate,
+        selectedTime,
+        cartItems: getCartItems(),
+        recurringClient: isRecurringClient(),
+        paymentDateValue: document.getElementById('input-pay-date')?.value || '',
+        confirmButton,
+        setInlineStatus,
+        setButtonLoading,
+        getBookedSlots,
+        populateTimes,
+        createAppointment: supabaseCreateAppointment,
+        updateUser: supabaseUpdateUser,
+        addToGoogleCalendar,
+        resetBookingFlowState,
+        renderSuccess,
+        updateBookingProgress,
+        showPage,
+        showToast
+    });
+
+    if (result?.reason === 'slot-already-booked') {
+        selectedTime = result.selectedTime;
     }
 
-    const totalPrice = getCartTotal();
-    const servicesNames = cart.map(s => s.name);
-
-    try {
-        setInlineStatus('payment-inline-status', 'Confirmando seu agendamento...', 'info');
-        setButtonLoading(confirmButton, true, 'Confirmando...');
-        const bookedSlots = await getBookedSlots(selectedDate);
-        if (bookedSlots.includes(selectedTime)) {
-            selectedTime = null;
-            await populateTimes();
-            setInlineStatus('payment-inline-status', 'Esse horÃ¡rio acabou de ser reservado. Escolha outro.', 'warning');
-            setButtonLoading(confirmButton, false);
-            return;
-        }
-
-        const newAppointment = await supabaseCreateAppointment({
-            services: servicesNames,
-            price: totalPrice,
-            date: selectedDate,
-            time: selectedTime,
-            paymentMethod: selectedPaymentMethod,
-            paymentDate: paymentDate
-        });
-
-        addToGoogleCalendar(newAppointment);
-
-        await supabaseUpdateUser(db.currentUser.id, {
-            appointments_count: (db.currentUser.appointments_count || 0) + 1,
-            type: 'Recorrente'
-        });
-        db.currentUser = {
-            ...db.currentUser,
-            appointments_count: (db.currentUser.appointments_count || 0) + 1,
-            type: 'Recorrente'
-        };
-
-        cart = [];
-        renderSuccess({
-            services: servicesNames,
-            price: totalPrice,
-            date: selectedDate,
-            time: selectedTime,
-            paymentMethod: selectedPaymentMethod
-        });
-        updateBookingProgress('success');
-        setInlineStatus('payment-inline-status', '');
-        setButtonLoading(confirmButton, false);
-        showPage('page-success');
-        showToast('Agendamento realizado! A administradora ser\u00e1 avisada pelo aplicativo.');
-    } catch (error) {
-        console.error('Erro ao confirmar:', error);
-        setInlineStatus('payment-inline-status', 'NÃ£o foi possÃ­vel confirmar o agendamento agora. Tente novamente.', 'error');
-        setButtonLoading(confirmButton, false);
-        showToast('Erro ao confirmar agendamento.');
+    if (result?.ok && result.user) {
+        db.currentUser = result.user;
     }
 }
 

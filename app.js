@@ -820,7 +820,6 @@ let currentAgendaMonth = new Date();
 let agendaView = 'month'; 
 let agendaViewTouched = false;
 let allAppointmentsCache = []; 
-let currentCalendarMonth = new Date();
 let adminNotificationInterval = null;
 let adminNotificationChannel = null;
 let adminNotificationBaselineReady = false;
@@ -836,6 +835,14 @@ function getBookingFlow() {
     }
 
     return window.bookingFlow;
+}
+
+function getBookingSchedule() {
+    if (!window.bookingSchedule) {
+        throw new Error('booking-schedule.js not initialized.');
+    }
+
+    return window.bookingSchedule;
 }
 
 function getCartItems() {
@@ -1629,6 +1636,79 @@ function selectTime(time, element) {
     element.classList.remove('bg-white', 'border-gray-200');
     element.classList.add('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
     updateBookingSummary();
+}
+
+function initCalendar() {
+    return getBookingSchedule().initCalendar({
+        scheduleConfig: db.scheduleConfig,
+        selectedDate,
+        onSelectDate: (dateStr, pill) => selectDate(dateStr, pill),
+        onPopulateTimes: () => populateTimes(),
+        toDateInputValue
+    });
+}
+
+function prevMonth() {
+    return getBookingSchedule().prevMonth({
+        onInitCalendar: () => initCalendar()
+    });
+}
+
+function nextMonth() {
+    return getBookingSchedule().nextMonth({
+        onInitCalendar: () => initCalendar()
+    });
+}
+
+function selectDate(dateStr, element) {
+    return getBookingSchedule().selectDate({
+        dateStr,
+        element,
+        onSelectedDateChange: value => { selectedDate = value; },
+        onSelectedTimeChange: value => { selectedTime = value; },
+        onClearInlineStatus: () => setInlineStatus('booking-inline-status', ''),
+        onUpdateSummary: () => updateBookingSummary(),
+        onPopulateTimes: () => populateTimes()
+    });
+}
+
+async function getBookedSlots(dateStr) {
+    return getBookingSchedule().getBookedSlots({
+        dateStr,
+        supabase: window.supabase
+    });
+}
+
+function parseTimeToMinutes(timeStr) {
+    return getBookingSchedule().parseTimeToMinutes(timeStr);
+}
+
+function formatMinutesToTime(totalMinutes) {
+    return getBookingSchedule().formatMinutesToTime(totalMinutes);
+}
+
+function getScheduleSlotDurationMinutes() {
+    return getBookingSchedule().getScheduleSlotDurationMinutes(db.scheduleConfig);
+}
+
+async function populateTimes() {
+    return getBookingSchedule().populateTimes({
+        selectedDate,
+        scheduleConfig: db.scheduleConfig,
+        supabase: window.supabase,
+        onTimeSelect: (time, btn) => selectTime(time, btn),
+        onWarnInlineStatus: message => setInlineStatus('booking-inline-status', message, 'warning')
+    });
+}
+
+function selectTime(time, element) {
+    return getBookingSchedule().selectTime({
+        time,
+        element,
+        onSelectedTimeChange: value => { selectedTime = value; },
+        onClearInlineStatus: () => setInlineStatus('booking-inline-status', ''),
+        onUpdateSummary: () => updateBookingSummary()
+    });
 }
 
 // ==========================================

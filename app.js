@@ -44,32 +44,27 @@ async function initSupabase() {
 
 async function loadAllData() {
     try {
-        const [servicesData, settingsData, scheduleData, galleryData] = await Promise.all([
-            window.supabase.from('services').select('*'),
-            window.supabase.from('settings').select('*'),
-            window.supabase.from('schedule_config').select('*').limit(1),
-            window.supabase.from('gallery').select('*').order('created_at', { ascending: false })
-        ]);
+        const { services, settings, scheduleRows, gallery } = await window.supabaseService.fetchPublicAppData();
 
-        db.services = (servicesData.data || []).filter(s => s.is_active === true || s.is_active === 'true');
+        db.services = (services || []).filter(s => s.is_active === true || s.is_active === 'true');
         db.settings = { profileImg: "" };
         db.appointmentsCache = [];
-        db.gallery = (galleryData.data || []).filter(g => g.is_active === true || g.is_active === 'true');
+        db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
         
         db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
 
-        if (settingsData.data && settingsData.data.length > 0) {
-            const profileSetting = settingsData.data.find(s => s.setting_key === 'profileImg');
+        if (settings && settings.length > 0) {
+            const profileSetting = settings.find(s => s.setting_key === 'profileImg');
             if (profileSetting && profileSetting.setting_value) db.settings.profileImg = profileSetting.setting_value;
         }
 
-        if (scheduleData.data && scheduleData.data.length > 0) {
+        if (scheduleRows && scheduleRows.length > 0) {
             db.scheduleConfig = {
-                start: scheduleData.data[0].start_time || "09:00",
-                end: scheduleData.data[0].end_time || "18:00",
-                slotDuration: Number(scheduleData.data[0].slot_duration) || 3,
-                availableDays: (scheduleData.data[0].available_days || [1, 2, 3, 4, 5]).map(Number),
-                blockedDates: (scheduleData.data[0].blocked_dates || []).map(String)
+                start: scheduleRows[0].start_time || "09:00",
+                end: scheduleRows[0].end_time || "18:00",
+                slotDuration: Number(scheduleRows[0].slot_duration) || 3,
+                availableDays: (scheduleRows[0].available_days || [1, 2, 3, 4, 5]).map(Number),
+                blockedDates: (scheduleRows[0].blocked_dates || []).map(String)
             };
         }
 
@@ -85,23 +80,13 @@ async function loadAllData() {
 async function loadProtectedDataForCurrentUser() {
     if (!db.currentUser) return;
 
-    if (db.isAdmin) {
-        const [usersData, appointmentsData] = await Promise.all([
-            window.supabase.from('users').select('*').order('created_at', { ascending: false }),
-            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
-        ]);
-        db.users = usersData.data || [];
-        db.appointmentsCache = appointmentsData.data || [];
-        return;
-    }
+    const protectedData = await window.supabaseService.fetchProtectedData({
+        currentUserId: db.currentUser.id,
+        isAdmin: db.isAdmin
+    });
 
-    db.users = [db.currentUser];
-    const { data: appointmentsData } = await window.supabase
-        .from('appointments')
-        .select('*')
-        .eq('user_id', db.currentUser.id)
-        .order('appointment_date', { ascending: false });
-    db.appointmentsCache = appointmentsData || [];
+    db.users = db.isAdmin ? (protectedData.users || []) : [db.currentUser];
+    db.appointmentsCache = protectedData.appointments || [];
 }
 
 function saveSession() {
@@ -484,8 +469,7 @@ async function handleAdminEmailLogin(button = null) {
 }
 
 async function supabaseUpdateUser(userId, updates) {
-    const { data, error } = await window.supabase.from('users').update(updates).eq('id', userId).select().single();
-    if (error) throw error;
+    const data = await window.supabaseService.updateUser(userId, updates);
     
     const index = db.users.findIndex(u => u.id === userId);
     if (index !== -1) db.users[index] = data;
@@ -498,7 +482,7 @@ async function supabaseUpdateUser(userId, updates) {
 }
 
 async function supabaseCreateAppointment(appointmentData) {
-    const { data, error } = await window.supabase.from('appointments').insert({
+    const data = await window.supabaseService.createAppointment({
         user_id: db.currentUser.id,
         services_names: Array.isArray(appointmentData.services) ? appointmentData.services.join(', ') : appointmentData.services,
         price: appointmentData.price,
@@ -508,15 +492,12 @@ async function supabaseCreateAppointment(appointmentData) {
         payment_status: 'Pendente',
         payment_date: appointmentData.paymentDate || null,
         status: 'Confirmado'
-    }).select().single();
-
-    if (error) throw error;
+    });
     return data;
 }
 
 async function supabaseUpdateService(serviceId, updates) {
-    const { data, error } = await window.supabase.from('services').update(updates).eq('id', serviceId).select().single();
-    if (error) throw error;
+    const data = await window.supabaseService.updateService(serviceId, updates);
     
     const index = db.services.findIndex(s => s.id === serviceId);
     if (index !== -1) db.services[index] = data;
@@ -525,54 +506,32 @@ async function supabaseUpdateService(serviceId, updates) {
 }
 
 async function supabaseCreateService(serviceData) {
-    const { data, error } = await window.supabase.from('services').insert({
+    const data = await window.supabaseService.createService({
         name: serviceData.name,
         description: serviceData.desc,
         price: serviceData.price,
         image_url: serviceData.img || '',
         is_active: true
-    }).select().single();
-
-    if (error) throw error;
+    });
     db.services.push(data);
     return data;
 }
 
 async function supabaseDeleteService(serviceId) {
-    const { error } = await window.supabase.from('services').update({ is_active: false }).eq('id', serviceId);
-    if (error) throw error;
-    
+    await window.supabaseService.archiveService(serviceId);
     db.services = db.services.filter(s => s.id !== serviceId);
 }
 
 async function supabaseSaveSettings(key, value) {
-    const { data, error } = await window.supabase.from('settings').upsert({
-        setting_key: key,
-        setting_value: value
-    }, { onConflict: 'setting_key' }).select().single();
-
-    if (error) throw error;
-    return data;
+    return window.supabaseService.saveSetting(key, value);
 }
 
 async function supabaseSaveScheduleConfig(config) {
-    const { data, error } = await window.supabase.from('schedule_config').update({
-        start_time: config.start,
-        end_time: config.end,
-        slot_duration: config.slotDuration || 3,
-        available_days: config.availableDays,
-        blocked_dates: config.blockedDates,
-        updated_at: new Date().toISOString()
-    }).eq('id', '00000000-0000-0000-0000-000000000001').select().single();
-
-    if (error) throw error;
-    return data;
+    return window.supabaseService.updateScheduleConfig(config);
 }
 
 async function supabaseGetAppointments() {
-    const { data, error } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return window.supabaseService.fetchAppointments();
 }
 
 // ==========================================
@@ -2683,16 +2642,7 @@ async function saveScheduleSettings() {
             blocked_dates: db.scheduleConfig.blockedDates || []
         };
 
-        const { data: existingData, error: fetchError } = await window.supabase.from('schedule_config').select('id').limit(1);
-        if (fetchError) throw fetchError;
-
-        if (existingData && existingData.length > 0) {
-            const { error } = await window.supabase.from('schedule_config').update(updates).eq('id', existingData[0].id);
-            if (error) throw error;
-        } else {
-            const { error } = await window.supabase.from('schedule_config').insert([updates]);
-            if (error) throw error;
-        }
+        await window.supabaseService.upsertScheduleConfig(updates);
 
         db.scheduleConfig = {
             start: updates.start_time,
@@ -3019,26 +2969,12 @@ async function saveGalleryItem() {
     if (!imageUrlToSave) return showToast('Você precisa enviar uma foto!');
 
     try {
-        let supabaseError = null;
-
-        if (id) {
-            const { error } = await window.supabase.from('gallery').update({ 
-                title: title, 
-                description: description, 
-                image_url: imageUrlToSave 
-            }).eq('id', id);
-            supabaseError = error;
-        } else {
-            const { error } = await window.supabase.from('gallery').insert([{ 
-                title: title, 
-                description: description, 
-                image_url: imageUrlToSave, 
-                is_active: true 
-            }]);
-            supabaseError = error;
-        }
-
-        if (supabaseError) throw supabaseError;
+        await window.supabaseService.saveGalleryItem({
+            id,
+            title,
+            description,
+            imageUrl: imageUrlToSave
+        });
 
         showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao Catálogo!');
         
@@ -3065,7 +3001,7 @@ async function saveGalleryItem() {
 async function confirmDeleteGalleryItem(id) {
     if (!confirm('Deseja excluir esta foto do catálogo?')) return;
     try {
-        await window.supabase.from('gallery').update({ is_active: false }).eq('id', id);
+        await window.supabaseService.archiveGalleryItem(id);
         await loadAllData();
         renderAdminGallery();
         showToast('Foto removida do catálogo.');

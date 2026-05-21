@@ -845,6 +845,14 @@ function getBookingSchedule() {
     return window.bookingSchedule;
 }
 
+function getBookingPayment() {
+    if (!window.bookingPayment) {
+        throw new Error('booking-payment.js not initialized.');
+    }
+
+    return window.bookingPayment;
+}
+
 function getCartItems() {
     return getBookingFlow().getCart();
 }
@@ -2008,6 +2016,42 @@ function selectPaymentMethod(method) {
     setInlineStatus('payment-inline-status', '');
     getBookingFlow().applyPaymentMethodUi(method);
     updatePaymentSummaryNote();
+}
+
+function requestPaymentLink() {
+    return getBookingPayment().requestPaymentLink({
+        totalPrice: getCartTotal(),
+        serviceNames: getCartServiceNames(),
+        formatCurrency
+    });
+}
+
+function requestCardPayment() {
+    return getBookingPayment().requestCardPayment({
+        selectedPaymentMethod,
+        totalPrice: getCartTotal(),
+        serviceNames: getCartServiceNames(),
+        formatCurrency
+    });
+}
+
+async function copyPixKey() {
+    return getBookingPayment().copyPixKey({
+        pixKey: '27997559191',
+        showToast
+    });
+}
+
+function renderSuccess(app) {
+    return getBookingPayment().renderSuccess({
+        appointment: app,
+        formatDate,
+        formatCurrency
+    });
+}
+
+function formatPaymentMethod(method) {
+    return getBookingPayment().formatPaymentMethod(method);
 }
 
 function formatServiceNames(value) {

@@ -56,6 +56,7 @@
         .page { display: none !important; }
         .page.active { display: flex !important; flex-direction: column; }
         .hidden { display: none !important; }
+        .admin-mobile-list { display: none; }
 
         @media (max-width: 768px) {
             #admin-view:not(.hidden) { display: flex !important; flex-direction: column !important; }
@@ -63,6 +64,8 @@
             .lg\:ml-64 { margin-left: 0 !important; }
             .overflow-x-auto table { min-width: 600px !important; }
             #adm-clients .grid-cols-3 { grid-template-columns: 1fr !important; }
+            .admin-desktop-table { display: none !important; }
+            .admin-mobile-list { display: flex !important; }
             #dates-container { display: flex !important; overflow-x: auto !important; gap: 10px !important; padding-bottom: 15px !important; -webkit-overflow-scrolling: touch; }
             #dates-container > div { min-width: 70px !important; flex-shrink: 0 !important; }
             #times-container { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
@@ -645,7 +648,7 @@
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 overflow-hidden">
-                    <div class="overflow-x-auto">
+                    <div class="overflow-x-auto admin-desktop-table">
                         <table class="w-full">
                             <thead>
                                 <tr class="border-b border-[#d4c4b7]/10">
@@ -660,6 +663,7 @@
                             <tbody id="clients-table-body"></tbody>
                         </table>
                     </div>
+                    <div id="clients-mobile-list" class="admin-mobile-list hidden flex-col gap-4 p-4"></div>
                 </div>
             </section>
 
@@ -784,7 +788,7 @@
                                     <input id="search-appointments" oninput="searchAppointments()" type="text" placeholder="Buscar por cliente, serviço ou data..." class="w-full bg-[#f7f3f2] border-none rounded-xl pl-12 pr-4 py-3 text-[#1c1b1b] placeholder-stone-400"/>
                                 </div>
                             </div>
-                            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                            <div class="overflow-x-auto max-h-80 overflow-y-auto admin-desktop-table">
                                 <table class="w-full">
                                     <thead>
                                         <tr class="border-b border-[#d4c4b7]/10">
@@ -799,6 +803,7 @@
                                     <tbody id="appointments-table-body"></tbody>
                                 </table>
                             </div>
+                            <div id="appointments-mobile-list" class="admin-mobile-list hidden flex-col gap-4 mt-4"></div>
                         </div>
                     </div>
                 </div>

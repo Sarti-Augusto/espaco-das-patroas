@@ -1873,8 +1873,10 @@ async function showNextAppointmentDetails() {
 // ==========================================
 async function renderAdminClients() {
     const tbody = document.getElementById('clients-table-body');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
+    const mobileList = document.getElementById('clients-mobile-list');
+    if (!tbody && !mobileList) return;
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-[#d4c4b7]/10 bg-[#f7f3f2] px-4 py-6 text-center text-sm text-stone-500">Carregando clientes...</div>';
 
     try {
         const users = db.users || [];
@@ -1886,7 +1888,14 @@ async function renderAdminClients() {
             appointmentsByUser[app.user_id].push(app);
         });
 
-        tbody.innerHTML = '';
+        if (tbody) tbody.innerHTML = '';
+        if (mobileList) mobileList.innerHTML = '';
+
+        if (users.length === 0) {
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhum cliente encontrado.</td></tr>';
+            if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-[#d4c4b7]/10 bg-[#f7f3f2] px-4 py-6 text-center text-sm text-stone-500">Nenhum cliente encontrado.</div>';
+            return;
+        }
 
         for (const u of users) {
             const userAppointments = appointmentsByUser[u.id] || [];
@@ -1900,49 +1909,100 @@ async function renderAdminClients() {
             const clientEmail = sanitizeString(u.email || '-');
             const lastServiceName = sanitizeString(lastApp ? formatServiceNames(lastApp.services_names) : '-');
 
-            const tr = document.createElement('tr');
-            tr.className = "group hover:bg-[#f7f3f2]/50 transition-colors";
-            tr.innerHTML = `
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <div class="flex items-center gap-4">
-                        <img src="${profileImg}" class="w-10 h-10 rounded-full object-cover">
-                        <div class="flex flex-col">
-                            <span class="font-bold text-[#1c1b1b]">${clientName}</span>
-                            <span class="text-xs text-stone-400">${clientEmail}</span>
+            if (tbody) {
+                const tr = document.createElement('tr');
+                tr.className = "group hover:bg-[#f7f3f2]/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <div class="flex items-center gap-4">
+                            <img src="${profileImg}" class="w-10 h-10 rounded-full object-cover">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-[#1c1b1b]">${clientName}</span>
+                                <span class="text-xs text-stone-400">${clientEmail}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <span class="text-stone-500 font-medium">${totalAppts}</span>
+                    </td>
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <select onchange="updateUserType('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
+                            <option value="Novo" ${u.type === 'Novo' ? 'selected' : ''}>Novo</option>
+                            <option value="Recorrente" ${u.type === 'Recorrente' ? 'selected' : ''}>Recorrente</option>
+                        </select>
+                    </td>
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <span class="text-stone-500 font-medium">${lastServiceName}</span>
+                        <div class="text-[10px] text-stone-400">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</div>
+                    </td>
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <div class="flex items-center gap-2 ${statusClass} font-bold text-xs">
+                            <span class="w-2 h-2 rounded-full ${statusDotClass}"></span>
+                            ${u.status === 'pendente' ? 'Pendente' : 'OK'}
+                        </div>
+                    </td>
+                    <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
+                        <select onchange="updateUserStatus('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer mb-1">
+                            <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>OK</option>
+                            <option value="pendente" ${u.status === 'pendente' ? 'selected' : ''}>Pendente</option>
+                        </select>
+                        <button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700 text-xs underline">Excluir</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            }
+
+            if (mobileList) {
+                const card = document.createElement('article');
+                card.className = 'rounded-2xl border border-[#d4c4b7]/10 bg-white p-4 shadow-sm';
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <img src="${profileImg}" class="w-12 h-12 rounded-full object-cover">
+                            <div class="min-w-0">
+                                <p class="font-bold text-[#1c1b1b] truncate">${clientName}</p>
+                                <p class="text-xs text-stone-400 truncate">${clientEmail}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 ${statusClass} font-bold text-[11px] whitespace-nowrap">
+                            <span class="w-2 h-2 rounded-full ${statusDotClass}"></span>
+                            ${u.status === 'pendente' ? 'Pendente' : 'OK'}
                         </div>
                     </div>
-                </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <span class="text-stone-500 font-medium">${totalAppts}</span>
-                </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <select onchange="updateUserType('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
-                        <option value="Novo" ${u.type === 'Novo' ? 'selected' : ''}>Novo</option>
-                        <option value="Recorrente" ${u.type === 'Recorrente' ? 'selected' : ''}>Recorrente</option>
-                    </select>
-                </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <span class="text-stone-500 font-medium">${lastServiceName}</span>
-                    <div class="text-[10px] text-stone-400">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</div>
-                </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <div class="flex items-center gap-2 ${statusClass} font-bold text-xs">
-                        <span class="w-2 h-2 rounded-full ${statusDotClass}"></span>
-                        ${u.status === 'pendente' ? 'Pendente' : 'OK'}
+                    <div class="grid grid-cols-2 gap-3 mt-4 text-sm">
+                        <div class="rounded-xl bg-[#f7f3f2] px-3 py-3">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Atendimentos</p>
+                            <p class="mt-1 font-bold text-[#1c1b1b]">${totalAppts}</p>
+                        </div>
+                        <div class="rounded-xl bg-[#f7f3f2] px-3 py-3">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Último serviço</p>
+                            <p class="mt-1 font-bold text-[#1c1b1b]">${lastServiceName}</p>
+                            <p class="text-[11px] text-stone-400 mt-1">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</p>
+                        </div>
                     </div>
-                </td>
-                <td class="px-8 py-5 border-t border-[#d4c4b7]/5">
-                    <select onchange="updateUserStatus('${u.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer mb-1">
-                        <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>OK</option>
-                        <option value="pendente" ${u.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-                    </select>
-                    <button onclick="deleteUser('${u.id}')" class="text-red-500 hover:text-red-700 text-xs underline">Excluir</button>
-                </td>`;
-            tbody.appendChild(tr);
+                    <div class="grid grid-cols-1 gap-3 mt-4">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Tipo</label>
+                            <select onchange="updateUserType('${u.id}', this.value)" class="w-full bg-[#f7f3f2] border border-stone-200 rounded-xl px-3 py-3 text-sm cursor-pointer">
+                                <option value="Novo" ${u.type === 'Novo' ? 'selected' : ''}>Novo</option>
+                                <option value="Recorrente" ${u.type === 'Recorrente' ? 'selected' : ''}>Recorrente</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Status</label>
+                            <select onchange="updateUserStatus('${u.id}', this.value)" class="w-full bg-[#f7f3f2] border border-stone-200 rounded-xl px-3 py-3 text-sm cursor-pointer">
+                                <option value="ok" ${u.status === 'ok' ? 'selected' : ''}>OK</option>
+                                <option value="pendente" ${u.status === 'pendente' ? 'selected' : ''}>Pendente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="deleteUser('${u.id}')" class="mt-4 w-full rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-600">Excluir cliente</button>`;
+                mobileList.appendChild(card);
+            }
         }
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar clientes</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar clientes</td></tr>';
+        if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-600">Erro ao carregar clientes.</div>';
     }
 }
 
@@ -1992,21 +2052,26 @@ async function deleteUser(userId) {
 // ==========================================
 async function renderAdminAppointments() {
     const tbody = document.getElementById('appointments-table-body');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
+    const mobileList = document.getElementById('appointments-mobile-list');
+    if (!tbody && !mobileList) return;
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
+    if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-[#d4c4b7]/10 bg-[#f7f3f2] px-4 py-6 text-center text-sm text-stone-500">Carregando agendamentos...</div>';
 
     try {
         const { data: appointments, error: appointmentsError } = await window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false });
         if (appointmentsError) throw appointmentsError;
         const { data: users, error: usersError } = await window.supabase.from('users').select('*');
         if (usersError) throw usersError;
+        db.appointmentsCache = appointments || [];
 
         if (!appointments || appointments.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhum agendamento encontrado.</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhum agendamento encontrado.</td></tr>';
+            if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-[#d4c4b7]/10 bg-[#f7f3f2] px-4 py-6 text-center text-sm text-stone-500">Nenhum agendamento encontrado.</div>';
             return;
         }
 
-        tbody.innerHTML = '';
+        if (tbody) tbody.innerHTML = '';
+        if (mobileList) mobileList.innerHTML = '';
         for (const app of appointments) {
             const user = users?.find(u => u.id === app.user_id);
             const statusColors = {
@@ -2017,31 +2082,81 @@ async function renderAdminAppointments() {
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
 
-            const tr = document.createElement('tr');
-            tr.className = "hover:bg-[#f7f3f2]/50 transition-colors";
-            tr.innerHTML = `
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
-                    <span class="font-medium text-[#1c1b1b]">${sanitizeString(user?.name || "Cliente")}</span>
-                    <div class="text-xs text-stone-400">${sanitizeString(user?.email || "-")}</div>
-                </td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${sanitizeString(formatServiceNames(app.services_names))}</td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${formatDate(app.appointment_date)}</td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${sanitizeString(app.appointment_time)}</td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
-                    <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${sanitizeString(app.status)}</span>
-                </td>
-                <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
-                    <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
-                        <option value="Confirmado" ${app.status === "Confirmado" ? "selected" : ""}>Confirmado</option>
-                        <option value="Conclu\u00eddo" ${app.status === "Conclu\u00eddo" ? "selected" : ""}>Conclu\u00eddo</option>
-                        <option value="Cancelado" ${app.status === "Cancelado" ? "selected" : ""}>Cancelado</option>
-                    </select>
-                </td>`;
-            tbody.appendChild(tr);
+            const clientName = sanitizeString(user?.name || "Cliente");
+            const clientEmail = sanitizeString(user?.email || "-");
+            const serviceNames = sanitizeString(formatServiceNames(app.services_names));
+            const appointmentDate = formatDate(app.appointment_date);
+            const appointmentTime = sanitizeString(app.appointment_time);
+            const appointmentStatus = sanitizeString(app.status);
+
+            if (tbody) {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-[#f7f3f2]/50 transition-colors";
+                tr.dataset.search = `${clientName} ${clientEmail} ${serviceNames} ${appointmentDate} ${appointmentTime} ${appointmentStatus}`.toLowerCase();
+                tr.innerHTML = `
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                        <span class="font-medium text-[#1c1b1b]">${clientName}</span>
+                        <div class="text-xs text-stone-400">${clientEmail}</div>
+                    </td>
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${serviceNames}</td>
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${appointmentDate}</td>
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5 text-sm">${appointmentTime}</td>
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                        <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${appointmentStatus}</span>
+                    </td>
+                    <td class="px-4 py-3 border-t border-[#d4c4b7]/5">
+                        <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="bg-transparent border border-stone-200 rounded-lg px-2 py-1 text-xs cursor-pointer">
+                            <option value="Confirmado" ${app.status === "Confirmado" ? "selected" : ""}>Confirmado</option>
+                            <option value="Conclu\u00eddo" ${app.status === "Conclu\u00eddo" ? "selected" : ""}>Conclu\u00eddo</option>
+                            <option value="Cancelado" ${app.status === "Cancelado" ? "selected" : ""}>Cancelado</option>
+                        </select>
+                    </td>`;
+                tbody.appendChild(tr);
+            }
+
+            if (mobileList) {
+                const card = document.createElement('article');
+                card.className = 'rounded-2xl border border-[#d4c4b7]/10 bg-[#fdf8f8] p-4 shadow-sm';
+                card.dataset.search = `${clientName} ${clientEmail} ${serviceNames} ${appointmentDate} ${appointmentTime} ${appointmentStatus}`.toLowerCase();
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="font-bold text-[#1c1b1b] truncate">${clientName}</p>
+                            <p class="text-xs text-stone-400 truncate">${clientEmail}</p>
+                        </div>
+                        <span class="px-2 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full whitespace-nowrap">${appointmentStatus}</span>
+                    </div>
+                    <div class="mt-4 space-y-3">
+                        <div class="rounded-xl bg-white px-3 py-3">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Serviço</p>
+                            <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${serviceNames}</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-xl bg-white px-3 py-3">
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Data</p>
+                                <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${appointmentDate}</p>
+                            </div>
+                            <div class="rounded-xl bg-white px-3 py-3">
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Horário</p>
+                                <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${appointmentTime}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Atualizar status</label>
+                            <select onchange="updateAppointmentStatus('${app.id}', this.value)" class="w-full bg-white border border-stone-200 rounded-xl px-3 py-3 text-sm cursor-pointer">
+                                <option value="Confirmado" ${app.status === "Confirmado" ? "selected" : ""}>Confirmado</option>
+                                <option value="Conclu\u00eddo" ${app.status === "Conclu\u00eddo" ? "selected" : ""}>Conclu\u00eddo</option>
+                                <option value="Cancelado" ${app.status === "Cancelado" ? "selected" : ""}>Cancelado</option>
+                            </select>
+                        </div>
+                    </div>`;
+                mobileList.appendChild(card);
+            }
         }
     } catch (error) {
         console.error('Erro ao carregar agendamentos:', error);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Erro ao carregar</td></tr>';
+        if (mobileList) mobileList.innerHTML = '<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-600">Erro ao carregar agendamentos.</div>';
     }
 }
 
@@ -2066,10 +2181,10 @@ async function updateAppointmentStatus(appointmentId, newStatus) {
 
 function searchAppointments() {
     const searchTerm = document.getElementById('search-appointments')?.value.toLowerCase() || '';
-    const rows = document.querySelectorAll('#appointments-table-body tr');
+    const rows = document.querySelectorAll('#appointments-table-body tr, #appointments-mobile-list [data-search]');
     
     rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
+        const text = (row.dataset.search || row.textContent || '').toLowerCase();
         row.style.display = text.includes(searchTerm) ? '' : 'none';
     });
 }

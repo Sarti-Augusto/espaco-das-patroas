@@ -7,6 +7,36 @@
         return window.supabase;
     }
 
+    function buildPublicAppDataPayload(servicesData, settingsData, scheduleData, galleryData) {
+        const errors = [
+            { scope: 'services', error: servicesData?.error || null },
+            { scope: 'settings', error: settingsData?.error || null },
+            { scope: 'schedule_config', error: scheduleData?.error || null },
+            { scope: 'gallery', error: galleryData?.error || null }
+        ].filter(entry => entry.error);
+
+        return {
+            services: servicesData?.data || [],
+            settings: settingsData?.data || [],
+            scheduleRows: scheduleData?.data || [],
+            gallery: galleryData?.data || [],
+            errors
+        };
+    }
+
+    function buildProtectedDataPayload(usersData, appointmentsData) {
+        const errors = [
+            { scope: 'users', error: usersData?.error || null },
+            { scope: 'appointments', error: appointmentsData?.error || null }
+        ].filter(entry => entry.error);
+
+        return {
+            users: usersData?.data || [],
+            appointments: appointmentsData?.data || [],
+            errors
+        };
+    }
+
     window.supabaseService = {
         async fetchPublicAppData() {
             const client = getClient();
@@ -17,12 +47,7 @@
                 client.from('gallery').select('*').order('created_at', { ascending: false })
             ]);
 
-            return {
-                services: servicesData.data || [],
-                settings: settingsData.data || [],
-                scheduleRows: scheduleData.data || [],
-                gallery: galleryData.data || []
-            };
+            return buildPublicAppDataPayload(servicesData, settingsData, scheduleData, galleryData);
         },
 
         async fetchProtectedData(options) {
@@ -39,21 +64,21 @@
                     client.from('appointments').select('*').order('appointment_date', { ascending: false })
                 ]);
 
-                return {
-                    users: usersData.data || [],
-                    appointments: appointmentsData.data || []
-                };
+                return buildProtectedDataPayload(usersData, appointmentsData);
             }
 
-            const { data: appointmentsData } = await client
+            const { data: appointmentsData, error } = await client
                 .from('appointments')
                 .select('*')
                 .eq('user_id', currentUserId)
                 .order('appointment_date', { ascending: false });
 
+            if (error) throw error;
+
             return {
                 users: [],
-                appointments: appointmentsData || []
+                appointments: appointmentsData || [],
+                errors: []
             };
         },
 

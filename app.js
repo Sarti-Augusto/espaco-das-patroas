@@ -21,6 +21,216 @@ let isDbLoaded = false;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 let authListenerAttached = false;
 let lastAuthErrorMessage = '';
+let fallbackSupabaseService = null;
+
+function getSupabaseClient() {
+    if (!window.supabase?.from) {
+        throw new Error('Supabase client not initialized.');
+    }
+
+    return window.supabase;
+}
+
+function buildPublicAppDataPayload(servicesData, settingsData, scheduleData, galleryData) {
+    const errors = [
+        { scope: 'services', error: servicesData?.error || null },
+        { scope: 'settings', error: settingsData?.error || null },
+        { scope: 'schedule_config', error: scheduleData?.error || null },
+        { scope: 'gallery', error: galleryData?.error || null }
+    ].filter(entry => entry.error);
+
+    return {
+        services: servicesData?.data || [],
+        settings: settingsData?.data || [],
+        scheduleRows: scheduleData?.data || [],
+        gallery: galleryData?.data || [],
+        errors
+    };
+}
+
+function buildProtectedDataPayload(usersData, appointmentsData) {
+    const errors = [
+        { scope: 'users', error: usersData?.error || null },
+        { scope: 'appointments', error: appointmentsData?.error || null }
+    ].filter(entry => entry.error);
+
+    return {
+        users: usersData?.data || [],
+        appointments: appointmentsData?.data || [],
+        errors
+    };
+}
+
+function createFallbackSupabaseService() {
+    return {
+        async fetchPublicAppData() {
+            const client = getSupabaseClient();
+            const [servicesData, settingsData, scheduleData, galleryData] = await Promise.all([
+                client.from('services').select('*'),
+                client.from('settings').select('*'),
+                client.from('schedule_config').select('*').limit(1),
+                client.from('gallery').select('*').order('created_at', { ascending: false })
+            ]);
+
+            return buildPublicAppDataPayload(servicesData, settingsData, scheduleData, galleryData);
+        },
+
+        async fetchProtectedData(options) {
+            const client = getSupabaseClient();
+            const { currentUserId, isAdmin } = options || {};
+
+            if (!currentUserId) {
+                return { users: [], appointments: [], errors: [] };
+            }
+
+            if (isAdmin) {
+                const [usersData, appointmentsData] = await Promise.all([
+                    client.from('users').select('*').order('created_at', { ascending: false }),
+                    client.from('appointments').select('*').order('appointment_date', { ascending: false })
+                ]);
+
+                return buildProtectedDataPayload(usersData, appointmentsData);
+            }
+
+            const appointmentsData = await client
+                .from('appointments')
+                .select('*')
+                .eq('user_id', currentUserId)
+                .order('appointment_date', { ascending: false });
+
+            if (appointmentsData.error) throw appointmentsData.error;
+
+            return {
+                users: [],
+                appointments: appointmentsData.data || [],
+                errors: []
+            };
+        },
+
+        async updateUser(userId, updates) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('users').update(updates).eq('id', userId).select().single();
+            if (error) throw error;
+            return data;
+        },
+
+        async createAppointment(appointmentData) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('appointments').insert(appointmentData).select().single();
+            if (error) throw error;
+            return data;
+        },
+
+        async updateService(serviceId, updates) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('services').update(updates).eq('id', serviceId).select().single();
+            if (error) throw error;
+            return data;
+        },
+
+        async createService(serviceData) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('services').insert(serviceData).select().single();
+            if (error) throw error;
+            return data;
+        },
+
+        async archiveService(serviceId) {
+            const client = getSupabaseClient();
+            const { error } = await client.from('services').update({ is_active: false }).eq('id', serviceId);
+            if (error) throw error;
+        },
+
+        async saveSetting(key, value) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('settings').upsert({
+                setting_key: key,
+                setting_value: value
+            }, { onConflict: 'setting_key' }).select().single();
+            if (error) throw error;
+            return data;
+        },
+
+        async updateScheduleConfig(config) {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('schedule_config').update({
+                start_time: config.start,
+                end_time: config.end,
+                slot_duration: config.slotDuration || 3,
+                available_days: config.availableDays,
+                blocked_dates: config.blockedDates,
+                updated_at: new Date().toISOString()
+            }).eq('id', '00000000-0000-0000-0000-000000000001').select().single();
+
+            if (error) throw error;
+            return data;
+        },
+
+        async upsertScheduleConfig(updates) {
+            const client = getSupabaseClient();
+            const { data: existingData, error: fetchError } = await client.from('schedule_config').select('id').limit(1);
+            if (fetchError) throw fetchError;
+
+            if (existingData && existingData.length > 0) {
+                const { error } = await client.from('schedule_config').update(updates).eq('id', existingData[0].id);
+                if (error) throw error;
+                return;
+            }
+
+            const { error } = await client.from('schedule_config').insert([updates]);
+            if (error) throw error;
+        },
+
+        async fetchAppointments() {
+            const client = getSupabaseClient();
+            const { data, error } = await client.from('appointments').select('*').order('appointment_date', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+
+        async saveGalleryItem(payload) {
+            const client = getSupabaseClient();
+            const { id, title, description, imageUrl } = payload;
+
+            if (id) {
+                const { error } = await client.from('gallery').update({
+                    title,
+                    description,
+                    image_url: imageUrl
+                }).eq('id', id);
+                if (error) throw error;
+                return;
+            }
+
+            const { error } = await client.from('gallery').insert([{
+                title,
+                description,
+                image_url: imageUrl,
+                is_active: true
+            }]);
+            if (error) throw error;
+        },
+
+        async archiveGalleryItem(id) {
+            const client = getSupabaseClient();
+            const { error } = await client.from('gallery').update({ is_active: false }).eq('id', id);
+            if (error) throw error;
+        }
+    };
+}
+
+function getSupabaseService() {
+    if (window.supabaseService) {
+        return window.supabaseService;
+    }
+
+    if (!fallbackSupabaseService) {
+        console.warn('supabase-service.js nao carregou. Usando fallback inline no app.js.');
+        fallbackSupabaseService = createFallbackSupabaseService();
+    }
+
+    return fallbackSupabaseService;
+}
 
 async function initSupabase() {
     try {
@@ -44,14 +254,28 @@ async function initSupabase() {
 
 async function loadAllData() {
     try {
-        const { services, settings, scheduleRows, gallery } = await window.supabaseService.fetchPublicAppData();
+        const service = getSupabaseService();
+        const { services, settings, scheduleRows, gallery, errors = [] } = await service.fetchPublicAppData();
+        const hasServicesError = errors.some(entry => entry.scope === 'services');
+        const hasGalleryError = errors.some(entry => entry.scope === 'gallery');
 
-        db.services = (services || []).filter(s => s.is_active === true || s.is_active === 'true');
+        if (!hasServicesError) {
+            db.services = (services || []).filter(s => s.is_active === true || s.is_active === 'true');
+        }
         db.settings = { profileImg: "" };
         db.appointmentsCache = [];
-        db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
+        if (!hasGalleryError) {
+            db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
+        }
         
         db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+
+        if (errors.length > 0) {
+            console.warn('Falhas parciais ao carregar dados publicos:', errors);
+            if (hasServicesError || hasGalleryError) {
+                showToast('Nao foi possivel atualizar todo o catalogo agora. Tentando manter os dados anteriores.');
+            }
+        }
 
         if (settings && settings.length > 0) {
             const profileSetting = settings.find(s => s.setting_key === 'profileImg');
@@ -80,7 +304,7 @@ async function loadAllData() {
 async function loadProtectedDataForCurrentUser() {
     if (!db.currentUser) return;
 
-    const protectedData = await window.supabaseService.fetchProtectedData({
+    const protectedData = await getSupabaseService().fetchProtectedData({
         currentUserId: db.currentUser.id,
         isAdmin: db.isAdmin
     });
@@ -469,7 +693,7 @@ async function handleAdminEmailLogin(button = null) {
 }
 
 async function supabaseUpdateUser(userId, updates) {
-    const data = await window.supabaseService.updateUser(userId, updates);
+    const data = await getSupabaseService().updateUser(userId, updates);
     
     const index = db.users.findIndex(u => u.id === userId);
     if (index !== -1) db.users[index] = data;
@@ -482,7 +706,7 @@ async function supabaseUpdateUser(userId, updates) {
 }
 
 async function supabaseCreateAppointment(appointmentData) {
-    const data = await window.supabaseService.createAppointment({
+    const data = await getSupabaseService().createAppointment({
         user_id: db.currentUser.id,
         services_names: Array.isArray(appointmentData.services) ? appointmentData.services.join(', ') : appointmentData.services,
         price: appointmentData.price,
@@ -497,7 +721,7 @@ async function supabaseCreateAppointment(appointmentData) {
 }
 
 async function supabaseUpdateService(serviceId, updates) {
-    const data = await window.supabaseService.updateService(serviceId, updates);
+    const data = await getSupabaseService().updateService(serviceId, updates);
     
     const index = db.services.findIndex(s => s.id === serviceId);
     if (index !== -1) db.services[index] = data;
@@ -506,7 +730,7 @@ async function supabaseUpdateService(serviceId, updates) {
 }
 
 async function supabaseCreateService(serviceData) {
-    const data = await window.supabaseService.createService({
+    const data = await getSupabaseService().createService({
         name: serviceData.name,
         description: serviceData.desc,
         price: serviceData.price,
@@ -518,20 +742,20 @@ async function supabaseCreateService(serviceData) {
 }
 
 async function supabaseDeleteService(serviceId) {
-    await window.supabaseService.archiveService(serviceId);
+    await getSupabaseService().archiveService(serviceId);
     db.services = db.services.filter(s => s.id !== serviceId);
 }
 
 async function supabaseSaveSettings(key, value) {
-    return window.supabaseService.saveSetting(key, value);
+    return getSupabaseService().saveSetting(key, value);
 }
 
 async function supabaseSaveScheduleConfig(config) {
-    return window.supabaseService.updateScheduleConfig(config);
+    return getSupabaseService().updateScheduleConfig(config);
 }
 
 async function supabaseGetAppointments() {
-    return window.supabaseService.fetchAppointments();
+    return getSupabaseService().fetchAppointments();
 }
 
 // ==========================================
@@ -2642,7 +2866,7 @@ async function saveScheduleSettings() {
             blocked_dates: db.scheduleConfig.blockedDates || []
         };
 
-        await window.supabaseService.upsertScheduleConfig(updates);
+        await getSupabaseService().upsertScheduleConfig(updates);
 
         db.scheduleConfig = {
             start: updates.start_time,
@@ -2969,7 +3193,7 @@ async function saveGalleryItem() {
     if (!imageUrlToSave) return showToast('Você precisa enviar uma foto!');
 
     try {
-        await window.supabaseService.saveGalleryItem({
+        await getSupabaseService().saveGalleryItem({
             id,
             title,
             description,
@@ -3001,7 +3225,7 @@ async function saveGalleryItem() {
 async function confirmDeleteGalleryItem(id) {
     if (!confirm('Deseja excluir esta foto do catálogo?')) return;
     try {
-        await window.supabaseService.archiveGalleryItem(id);
+        await getSupabaseService().archiveGalleryItem(id);
         await loadAllData();
         renderAdminGallery();
         showToast('Foto removida do catálogo.');

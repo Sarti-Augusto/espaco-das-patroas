@@ -413,6 +413,38 @@ function setAuthStatus(button, message = '') {
     });
 }
 
+function setInlineStatus(elementId, message = '', variant = 'info') {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const variants = {
+        info: ['bg-[#f7f3f2]', 'text-[#50453b]', 'border', 'border-[#d4c4b7]/40'],
+        success: ['bg-emerald-50', 'text-emerald-700', 'border', 'border-emerald-200'],
+        warning: ['bg-amber-50', 'text-amber-700', 'border', 'border-amber-200'],
+        error: ['bg-red-50', 'text-red-700', 'border', 'border-red-200']
+    };
+
+    Object.values(variants).flat().forEach(className => element.classList.remove(className));
+
+    if (!message) {
+        element.textContent = '';
+        element.classList.add('hidden');
+        return;
+    }
+
+    element.textContent = message;
+    element.classList.remove('hidden');
+    (variants[variant] || variants.info).forEach(className => element.classList.add(className));
+}
+
+function setFieldError(inputId, hasError) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    input.classList.toggle('border-red-300', hasError);
+    input.classList.toggle('focus:border-red-500', hasError);
+}
+
 function waitForNextPaint() {
     return new Promise(resolve => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
@@ -880,6 +912,9 @@ function showLoginStep1(email) {
     document.getElementById('login-form-step1')?.classList.remove('hidden');
     document.getElementById('login-form-step2')?.classList.add('hidden');
     setAuthStatus(null, '');
+    setInlineStatus('login-inline-status', '');
+    setFieldError('input-login-name', false);
+    setFieldError('input-login-phone', false);
 }
 
 function showLoginStep2() {
@@ -887,6 +922,9 @@ function showLoginStep2() {
     document.getElementById('login-form-step2').classList.remove('hidden');
     document.getElementById('input-login-name').value = '';
     document.getElementById('input-login-phone').value = '';
+    setInlineStatus('login-inline-status', 'Complete seus dados para liberar o primeiro agendamento.', 'info');
+    setFieldError('input-login-name', false);
+    setFieldError('input-login-phone', false);
     document.getElementById('input-login-name').focus();
 }
 
@@ -897,13 +935,24 @@ async function handleLogin() {
     const name = sanitizeString(nameInput.value.trim());
     const phone = phoneInput.value.replace(/\D/g, '');
 
-    if (!name || !phone) return showToast("Complete seu cadastro.");
-    if (phone.length < 10) return showToast("Digite um telefone válido com DDD.");
+    setFieldError('input-login-name', !name);
+    setFieldError('input-login-phone', !phone);
+
+    if (!name || !phone) {
+        setInlineStatus('login-inline-status', 'Preencha nome e telefone para concluir o cadastro.', 'error');
+        return;
+    }
+    if (phone.length < 10) {
+        setFieldError('input-login-phone', true);
+        setInlineStatus('login-inline-status', 'Digite um telefone válido com DDD.', 'error');
+        return;
+    }
 
     try {
+        setInlineStatus('login-inline-status', 'Salvando seu cadastro...', 'info');
         if (!db.currentUser) await syncAuthProfile();
         if (!db.currentUser) {
-            showToast('Faça login novamente para concluir o cadastro.');
+            setInlineStatus('login-inline-status', 'Faça login novamente para concluir o cadastro.', 'error');
             return;
         }
         const user = await supabaseUpdateUser(db.currentUser.id, { name, phone });
@@ -917,9 +966,11 @@ async function handleLogin() {
         updateCartFab();
         showPage('page-home');
         updateBottomNav('home');
+        setInlineStatus('login-inline-status', '');
         showToast(`Bem-vinda, ${name.split(' ')[0]}!`);
     } catch (error) {
         console.error('Erro ao salvar:', error);
+        setInlineStatus('login-inline-status', 'Não foi possível salvar seus dados agora.', 'error');
         showToast('Erro ao salvar dados.');
     }
 }
@@ -1015,6 +1066,59 @@ function updateCartFab() {
     }
 }
 
+function updateBookingProgress(step) {
+    ['booking-stepper', 'payment-stepper'].forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        container.querySelectorAll('[data-step]').forEach(item => {
+            const isActive = item.dataset.step === step;
+            item.classList.toggle('bg-[#7f5353]', isActive);
+            item.classList.toggle('text-white', isActive);
+            item.classList.toggle('bg-[#f7f3f2]', !isActive);
+            item.classList.toggle('text-[#82756a]', !isActive);
+        });
+    });
+}
+
+function updateBookingSummary() {
+    const servicesLabel = getCartServiceNames() || 'Selecione os serviços';
+    const dateLabel = selectedDate ? formatDate(selectedDate) : 'Escolha uma data';
+    const timeLabel = selectedTime || 'Escolha um horário';
+
+    const servicesElement = document.getElementById('booking-summary-services');
+    const dateTimeElement = document.getElementById('booking-summary-datetime');
+    const totalElement = document.getElementById('booking-summary-total');
+
+    if (servicesElement) servicesElement.textContent = servicesLabel;
+    if (dateTimeElement) dateTimeElement.textContent = `${dateLabel} • ${timeLabel}`;
+    if (totalElement) totalElement.textContent = formatCurrency(getCartTotal());
+}
+
+function updatePaymentSummaryNote() {
+    const noteElement = document.getElementById('payment-summary-note');
+    if (!noteElement) return;
+
+    if (!selectedPaymentMethod) {
+        noteElement.textContent = 'Escolha a forma de pagamento para concluir o agendamento.';
+        return;
+    }
+
+    if (!isRecurringClient()) {
+        noteElement.textContent = 'Como este é o primeiro atendimento, liberamos apenas o sinal de 50% via PIX ou cartão.';
+        return;
+    }
+
+    const notes = {
+        '50': 'Seu horário será reservado após a confirmação do sinal de 50%.',
+        'full': 'Pagamento antecipado disponível por PIX ou link de cartão.',
+        'store': 'Você poderá pagar presencialmente no atendimento.',
+        'scheduled': 'Programe o pagamento em até 20 dias após a reserva.'
+    };
+
+    noteElement.textContent = notes[selectedPaymentMethod] || 'Escolha a forma de pagamento para concluir o agendamento.';
+}
+
 // ==========================================
 // BOOKING
 // ==========================================
@@ -1038,7 +1142,7 @@ function proceedToBooking() {
             const user = db.users.find(u => u.id === savedUserId);
             if (user) {
                 db.currentUser = user;
-                db.isAdmin = user.email === ADMIN_EMAIL;
+                db.isAdmin = isAdminProfile(user);
                 proceedToBookingActual();
                 return;
             }
@@ -1049,7 +1153,7 @@ function proceedToBooking() {
                     const user = db.users.find(u => u.id === savedUserId);
                     if (user) {
                         db.currentUser = user;
-                        db.isAdmin = user.email === ADMIN_EMAIL;
+                        db.isAdmin = isAdminProfile(user);
                         proceedToBookingActual();
                     } else {
                         showPage('page-login');
@@ -1069,6 +1173,11 @@ function proceedToBookingActual() {
     const alertContainer = document.getElementById('alert-blocked-container');
     const mainContent = document.querySelector('#page-booking main');
     const bottomBtn = document.getElementById('btn-continue-booking');
+    selectedDate = null;
+    selectedTime = null;
+    setInlineStatus('booking-inline-status', '');
+    updateBookingProgress('schedule');
+    updateBookingSummary();
 
     if (String(db.currentUser.status || '').toLowerCase() === 'pendente') {
         if (alertContainer) { alertContainer.classList.remove('hidden'); alertContainer.classList.add('flex'); }
@@ -1181,12 +1290,14 @@ function nextMonth() {
 function selectDate(dateStr, element) {
     selectedDate = dateStr;
     selectedTime = null;
+    setInlineStatus('booking-inline-status', '');
     document.querySelectorAll('#dates-container > div').forEach(el => {
         el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
         el.classList.add('bg-white', 'border-gray-200');
     });
     element.classList.remove('bg-white', 'border-gray-200');
     element.classList.add('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
+    updateBookingSummary();
     populateTimes();
 }
 
@@ -1227,7 +1338,7 @@ async function populateTimes() {
     if (!container) return;
     container.innerHTML = '';
 
-    if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data</p>';
+    if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data para liberar os horários.</p>';
 
     const startMinutes = parseTimeToMinutes(db.scheduleConfig.start || '09:00');
     const endMinutes = parseTimeToMinutes(db.scheduleConfig.end || '18:00');
@@ -1238,7 +1349,7 @@ async function populateTimes() {
         bookedSlots = await getBookedSlots(selectedDate);
     } catch (error) {
         console.error('Erro ao consultar horários ocupados:', error);
-        showToast('Não foi possível conferir horários ocupados.');
+        setInlineStatus('booking-inline-status', 'Não foi possível conferir os horários agora. Tente novamente em instantes.', 'warning');
     }
 
     if (endMinutes <= startMinutes || slotDurationMinutes <= 0) {
@@ -1261,18 +1372,20 @@ async function populateTimes() {
     }
 
     if (renderedSlots === 0) {
-        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum horário configurado para esta data.</p>';
+        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum horário disponível nessa data. Escolha outro dia ou ajuste a agenda no painel.</p>';
     }
 }
 
 function selectTime(time, element) {
     selectedTime = time;
+    setInlineStatus('booking-inline-status', '');
     document.querySelectorAll('#times-container button').forEach(el => {
         el.classList.remove('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
         el.classList.add('bg-white', 'border-gray-200');
     });
     element.classList.remove('bg-white', 'border-gray-200');
     element.classList.add('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
+    updateBookingSummary();
 }
 
 // ==========================================
@@ -1303,7 +1416,10 @@ function updatePaymentOptionsForCurrentUser() {
 }
 
 function goToPayment() {
-    if (!selectedDate || !selectedTime) return showToast("Selecione data e horário.");
+    if (!selectedDate || !selectedTime) {
+        setInlineStatus('booking-inline-status', 'Selecione uma data e um horário para continuar.', 'error');
+        return;
+    }
     if (!db.currentUser) return showPage('page-login');
 
     const totalPrice = getCartTotal();
@@ -1316,6 +1432,7 @@ function goToPayment() {
     document.getElementById('payment-50-info')?.classList.add('hidden');
     document.getElementById('payment-full-info')?.classList.add('hidden');
     document.getElementById('scheduled-date-container')?.classList.add('hidden');
+    setInlineStatus('payment-inline-status', '');
 
     const payInput = document.getElementById('input-pay-date');
     const today = new Date();
@@ -1331,11 +1448,14 @@ function goToPayment() {
     selectedPaymentMethod = null;
     document.querySelectorAll('input[name="payment"]').forEach(input => { input.checked = false; });
     updatePaymentOptionsForCurrentUser();
+    updateBookingProgress('payment');
+    updatePaymentSummaryNote();
     showPage('page-payment');
 }
 
 function selectPaymentMethod(method) {
     selectedPaymentMethod = method;
+    setInlineStatus('payment-inline-status', '');
 
     document.getElementById('payment-50-info')?.classList.add('hidden');
     document.getElementById('payment-full-info')?.classList.add('hidden');
@@ -1352,6 +1472,8 @@ function selectPaymentMethod(method) {
         const dateContainer = document.getElementById('scheduled-date-container');
         if (dateContainer) dateContainer.classList.remove('hidden');
     }
+
+    updatePaymentSummaryNote();
 }
 
 function requestPaymentLink() {
@@ -1406,27 +1528,38 @@ async function copyPixKey() {
 }
 
 async function confirmBooking() {
-    if (!selectedPaymentMethod) return showToast("Selecione uma forma de pagamento.");
+    const confirmButton = document.getElementById('confirm-booking-button');
+    if (!selectedPaymentMethod) {
+        setInlineStatus('payment-inline-status', 'Selecione uma forma de pagamento para continuar.', 'error');
+        return;
+    }
     if (!db.currentUser) return showPage('page-login');
     if (!isRecurringClient() && selectedPaymentMethod !== '50') {
-        return showToast('Para novas clientes, o agendamento exige sinal de 50%.');
+        setInlineStatus('payment-inline-status', 'Para novas clientes, o agendamento exige sinal de 50%.', 'warning');
+        return;
     }
 
     let paymentDate = null;
     if (selectedPaymentMethod === 'scheduled') {
         paymentDate = document.getElementById('input-pay-date').value;
-        if (!paymentDate) return showToast("Selecione a data para o pagamento programado.");
+        if (!paymentDate) {
+            setInlineStatus('payment-inline-status', 'Selecione a data para o pagamento programado.', 'error');
+            return;
+        }
     }
 
     const totalPrice = getCartTotal();
     const servicesNames = cart.map(s => s.name);
 
     try {
+        setInlineStatus('payment-inline-status', 'Confirmando seu agendamento...', 'info');
+        setButtonLoading(confirmButton, true, 'Confirmando...');
         const bookedSlots = await getBookedSlots(selectedDate);
         if (bookedSlots.includes(selectedTime)) {
             selectedTime = null;
             await populateTimes();
-            showToast('Esse hor\u00e1rio acabou de ser reservado. Escolha outro.');
+            setInlineStatus('payment-inline-status', 'Esse horário acabou de ser reservado. Escolha outro.', 'warning');
+            setButtonLoading(confirmButton, false);
             return;
         }
 
@@ -1459,10 +1592,15 @@ async function confirmBooking() {
             time: selectedTime,
             paymentMethod: selectedPaymentMethod
         });
+        updateBookingProgress('success');
+        setInlineStatus('payment-inline-status', '');
+        setButtonLoading(confirmButton, false);
         showPage('page-success');
         showToast('Agendamento realizado! A administradora ser\u00e1 avisada pelo aplicativo.');
     } catch (error) {
         console.error('Erro ao confirmar:', error);
+        setInlineStatus('payment-inline-status', 'Não foi possível confirmar o agendamento agora. Tente novamente.', 'error');
+        setButtonLoading(confirmButton, false);
         showToast('Erro ao confirmar agendamento.');
     }
 }
@@ -1628,13 +1766,9 @@ function showAdminSection(section) {
     }
 
     if (section === 'clients') {
-        renderAdminDashboard().catch(error => {
-            console.error('Erro ao renderizar dashboard admin:', error);
-            showToast('O painel abriu, mas o dashboard não carregou por completo.');
-        });
-        renderAdminClients().catch(error => {
-            console.error('Erro ao renderizar clientes admin:', error);
-            showToast('A lista de clientes não carregou por completo.');
+        refreshAdminClientsSection().catch(error => {
+            console.error('Erro ao carregar seção de clientes admin:', error);
+            showToast('O painel abriu, mas a área de clientes não carregou por completo.');
         });
     }
     else if (section === 'schedule') {
@@ -1658,8 +1792,15 @@ function showAdminSection(section) {
 // ==========================================
 // ADMIN DASHBOARD
 // ==========================================
+async function refreshAdminClientsSection() {
+    await loadProtectedDataForCurrentUser();
+    await Promise.all([
+        renderAdminDashboard(),
+        renderAdminClients()
+    ]);
+}
+
 async function renderAdminDashboard() {
-    await loadAllData();
     const concluidos = db.appointmentsCache.filter(a => a.status !== 'Cancelado').length;
     const recorrentes = db.users.filter(u => db.appointmentsCache.filter(a => a.user_id === u.id).length > 1).length;
     const taxaRetorno = db.users.length > 0 ? Math.round((recorrentes / db.users.length) * 100) : 0;
@@ -1736,15 +1877,8 @@ async function renderAdminClients() {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8">Carregando...</td></tr>';
 
     try {
-        const [usersResult, appointmentsResult] = await Promise.all([
-            window.supabase.from('users').select('*').order('created_at', { ascending: false }),
-            window.supabase.from('appointments').select('*').order('appointment_date', { ascending: false })
-        ]);
-
-        if (usersResult.error) throw usersResult.error;
-
-        const users = usersResult.data || [];
-        const allAppointments = appointmentsResult.data || [];
+        const users = db.users || [];
+        const allAppointments = db.appointmentsCache || [];
 
         const appointmentsByUser = {};
         allAppointments.forEach(app => {
@@ -1815,6 +1949,8 @@ async function renderAdminClients() {
 async function updateUserStatus(userId, newStatus) {
     try {
         await supabaseUpdateUser(userId, { status: newStatus });
+        await renderAdminDashboard();
+        await renderAdminClients();
         showToast(`Status atualizado.`);
     } catch (error) {
         showToast('Erro ao atualizar.');
@@ -1824,6 +1960,8 @@ async function updateUserStatus(userId, newStatus) {
 async function updateUserType(userId, newType) {
     try {
         await supabaseUpdateUser(userId, { type: newType });
+        await renderAdminDashboard();
+        await renderAdminClients();
         showToast(`Cliente classificado como ${newType}.`);
     } catch (error) {
         showToast('Erro ao atualizar.');
@@ -1841,7 +1979,8 @@ async function deleteUser(userId) {
         const { error } = await window.supabase.from('users').delete().eq('id', userId);
         if (error) throw error;
         db.users = db.users.filter(u => u.id !== userId);
-        renderAdminClients();
+        await renderAdminDashboard();
+        await renderAdminClients();
         showToast("Cliente exclu\u00eddo.");
     } catch (error) {
         showToast('Erro ao excluir cliente.');

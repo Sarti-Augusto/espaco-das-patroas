@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
@@ -212,6 +212,7 @@
                             <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Telefone</label>
                             <input id="input-login-phone" type="tel" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" placeholder="(00) 00000-0000" required />
                         </div>
+                        <p id="login-inline-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
                         <button type="submit" id="btn-login" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
                             Cadastrar
                         </button>
@@ -257,6 +258,38 @@
             </div>
 
             <main class="pt-20 px-6">
+                <section class="bg-white rounded-2xl border border-[#d4c4b7]/30 p-4 shadow-sm space-y-4 mb-6">
+                    <div id="booking-stepper" class="grid grid-cols-4 gap-2 text-center">
+                        <div data-step="services" class="rounded-xl px-3 py-2 bg-[#7f5353] text-white">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">1</p>
+                            <p class="text-xs font-semibold mt-1">Serviços</p>
+                        </div>
+                        <div data-step="schedule" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">2</p>
+                            <p class="text-xs font-semibold mt-1">Horário</p>
+                        </div>
+                        <div data-step="payment" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">3</p>
+                            <p class="text-xs font-semibold mt-1">Pagamento</p>
+                        </div>
+                        <div data-step="success" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">4</p>
+                            <p class="text-xs font-semibold mt-1">Confirmação</p>
+                        </div>
+                    </div>
+                    <div class="bg-[#f7f3f2] rounded-2xl p-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-widest font-bold text-[#7f5353]">Resumo do agendamento</p>
+                                <p id="booking-summary-services" class="font-headline font-bold text-[#1c1b1b] mt-2">Selecione os serviços</p>
+                                <p id="booking-summary-datetime" class="text-sm text-[#50453b] mt-1">Escolha uma data e um horário</p>
+                            </div>
+                            <p id="booking-summary-total" class="text-xl font-extrabold text-[#7f5353]">R$ 0,00</p>
+                        </div>
+                    </div>
+                    <p id="booking-inline-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+                </section>
+
                 <section class="mb-6">
                     <h3 class="font-headline font-bold text-lg mb-4">Serviços selecionados</h3>
                     <div id="selected-services-list" class="space-y-3"></div>
@@ -300,10 +333,32 @@
             </header>
 
             <main class="pt-20 px-6">
+                <section class="bg-white rounded-2xl border border-[#d4c4b7]/30 p-4 shadow-sm space-y-4 mb-6">
+                    <div id="payment-stepper" class="grid grid-cols-4 gap-2 text-center">
+                        <div data-step="services" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">1</p>
+                            <p class="text-xs font-semibold mt-1">Serviços</p>
+                        </div>
+                        <div data-step="schedule" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">2</p>
+                            <p class="text-xs font-semibold mt-1">Horário</p>
+                        </div>
+                        <div data-step="payment" class="rounded-xl px-3 py-2 bg-[#7f5353] text-white">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">3</p>
+                            <p class="text-xs font-semibold mt-1">Pagamento</p>
+                        </div>
+                        <div data-step="success" class="rounded-xl px-3 py-2 bg-[#f7f3f2] text-[#82756a]">
+                            <p class="text-[10px] uppercase tracking-widest font-bold">4</p>
+                            <p class="text-xs font-semibold mt-1">Confirmação</p>
+                        </div>
+                    </div>
+                    <p id="payment-inline-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+                </section>
                 <div class="bg-[#f7f3f2] rounded-xl p-6 mb-6">
                     <h3 class="font-headline font-bold text-lg text-[#1c1b1b]" id="pay-service-name">Serviço</h3>
                     <p class="text-sm text-[#50453b] mt-1" id="pay-service-date">Data e horário</p>
                     <p class="text-2xl font-extrabold text-[#7f5353] mt-3" id="pay-service-price">R$ 0,00</p>
+                    <p id="payment-summary-note" class="text-sm text-[#50453b] mt-3">Escolha a forma de pagamento para concluir o agendamento.</p>
                 </div>
 
                 <section id="payment-methods-section" class="space-y-4">
@@ -413,7 +468,7 @@
                     </div>
                 </section>
 
-                <button onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
+                <button id="confirm-booking-button" onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
                     Confirmar Agendamento
                 </button>
             </main>

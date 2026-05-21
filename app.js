@@ -1,4 +1,4 @@
-// ==========================================
+﻿// ==========================================
 // SUPABASE CONFIGURATION
 // ==========================================
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
@@ -410,7 +410,7 @@ function withTimeout(promise, timeoutMs = 15000) {
     return Promise.race([
         promise,
         new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Tempo limite excedido. Verifique a conexão e a configuração de Auth.')), timeoutMs);
+            setTimeout(() => reject(new Error('Tempo limite excedido. Verifique a conexÃ£o e a configuraÃ§Ã£o de Auth.')), timeoutMs);
         })
     ]);
 }
@@ -581,7 +581,7 @@ async function processInitialAuth() {
         routed = checkAutoLogin();
     } catch (routeError) {
         console.error('Erro ao encaminhar login autenticado:', routeError);
-        showAuthError(routeError.message || 'O login foi autenticado, mas o painel não conseguiu abrir.');
+        showAuthError(routeError.message || 'O login foi autenticado, mas o painel nÃ£o conseguiu abrir.');
         return false;
     }
     if (routed) {
@@ -679,10 +679,10 @@ async function handleGoogleLogin(role = 'client', button = null) {
             options
         }));
         if (error) throw error;
-        if (!data?.url) throw new Error('Google OAuth não retornou URL de redirecionamento.');
+        if (!data?.url) throw new Error('Google OAuth nÃ£o retornou URL de redirecionamento.');
     } catch (error) {
         console.error('Erro no login Google:', error);
-        showToast(error.message || 'Não foi possível iniciar login com Gmail.');
+        showToast(error.message || 'NÃ£o foi possÃ­vel iniciar login com Gmail.');
         setButtonLoading(button, false);
         setAuthStatus(button, '');
     }
@@ -772,8 +772,8 @@ function checkAutoLogin() {
     if (expectedRole === 'admin') {
         if (!db.isAdmin) {
             showAdminLogin();
-            setAuthStatus(null, 'Este e-mail não tem permissão administrativa.');
-            showToast('Este e-mail não tem permissão administrativa.');
+            setAuthStatus(null, 'Este e-mail nÃ£o tem permissÃ£o administrativa.');
+            showToast('Este e-mail nÃ£o tem permissÃ£o administrativa.');
             localStorage.removeItem('espacoPatroas_pendingLoginRole');
             window.supabase.auth.signOut();
             return true;
@@ -984,7 +984,7 @@ function switchToAdminView() {
         showAdminSection('clients');
     } catch (error) {
         console.error('Erro ao abrir painel administrativo:', error);
-        showToast('O login foi concluído, mas houve erro ao abrir o painel.');
+        showToast('O login foi concluÃ­do, mas houve erro ao abrir o painel.');
     }
 }
 
@@ -1232,7 +1232,7 @@ async function handleLogin() {
     }
     if (phone.length < 10) {
         setFieldError('input-login-phone', true);
-        setInlineStatus('login-inline-status', 'Digite um telefone válido com DDD.', 'error');
+        setInlineStatus('login-inline-status', 'Digite um telefone vÃ¡lido com DDD.', 'error');
         return;
     }
 
@@ -1240,7 +1240,7 @@ async function handleLogin() {
         setInlineStatus('login-inline-status', 'Salvando seu cadastro...', 'info');
         if (!db.currentUser) await syncAuthProfile();
         if (!db.currentUser) {
-            setInlineStatus('login-inline-status', 'Faça login novamente para concluir o cadastro.', 'error');
+            setInlineStatus('login-inline-status', 'FaÃ§a login novamente para concluir o cadastro.', 'error');
             return;
         }
         const user = await supabaseUpdateUser(db.currentUser.id, { name, phone });
@@ -1258,7 +1258,7 @@ async function handleLogin() {
         showToast(`Bem-vinda, ${name.split(' ')[0]}!`);
     } catch (error) {
         console.error('Erro ao salvar:', error);
-        setInlineStatus('login-inline-status', 'Não foi possível salvar seus dados agora.', 'error');
+        setInlineStatus('login-inline-status', 'NÃ£o foi possÃ­vel salvar seus dados agora.', 'error');
         showToast('Erro ao salvar dados.');
     }
 }
@@ -1345,49 +1345,12 @@ function updateBookingProgress(step) {
     getBookingFlow().updateBookingProgress(step);
 }
 
-function updateBookingSummary() {
-    const servicesLabel = getCartServiceNames() || 'Selecione os serviços';
-    const dateLabel = selectedDate ? formatDate(selectedDate) : 'Escolha uma data';
-    const timeLabel = selectedTime || 'Escolha um horário';
-
-    const servicesElement = document.getElementById('booking-summary-services');
-    const dateTimeElement = document.getElementById('booking-summary-datetime');
-    const totalElement = document.getElementById('booking-summary-total');
-
-    if (servicesElement) servicesElement.textContent = servicesLabel;
-    if (dateTimeElement) dateTimeElement.textContent = `${dateLabel} • ${timeLabel}`;
-    if (totalElement) totalElement.textContent = formatCurrency(getCartTotal());
-}
-
-function updatePaymentSummaryNote() {
-    const noteElement = document.getElementById('payment-summary-note');
-    if (!noteElement) return;
-
-    if (!selectedPaymentMethod) {
-        noteElement.textContent = 'Escolha a forma de pagamento para concluir o agendamento.';
-        return;
-    }
-
-    if (!isRecurringClient()) {
-        noteElement.textContent = 'Como este é o primeiro atendimento, liberamos apenas o sinal de 50% via PIX ou cartão.';
-        return;
-    }
-
-    const notes = {
-        '50': 'Seu horário será reservado após a confirmação do sinal de 50%.',
-        'full': 'Pagamento antecipado disponível por PIX ou link de cartão.',
-        'store': 'Você poderá pagar presencialmente no atendimento.',
-        'scheduled': 'Programe o pagamento em até 20 dias após a reserva.'
-    };
-
-    noteElement.textContent = notes[selectedPaymentMethod] || 'Escolha a forma de pagamento para concluir o agendamento.';
-}
 
 // ==========================================
 // BOOKING
 // ==========================================
 function proceedToBooking() {
-    if (cart.length === 0) return showToast("Adicione serviços.");
+    if (cart.length === 0) return showToast("Adicione serviÃ§os.");
 
     if (!isDbLoaded) {
         showToast("Carregando...");
@@ -1461,189 +1424,6 @@ function proceedToBookingActual() {
         initCalendar();
         showPage('page-booking');
     }
-}
-
-function initCalendar() {
-    const container = document.getElementById('dates-container');
-    const monthLabel = document.getElementById('current-month-label');
-    if (!container) return;
-
-    if (!db.scheduleConfig) db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
-    if (!db.scheduleConfig.blockedDates) db.scheduleConfig.blockedDates = [];
-    if (!db.scheduleConfig.availableDays) db.scheduleConfig.availableDays = [1, 2, 3, 4, 5];
-    db.scheduleConfig.availableDays = db.scheduleConfig.availableDays.map(Number);
-    db.scheduleConfig.blockedDates = db.scheduleConfig.blockedDates.map(String);
-    db.scheduleConfig.slotDuration = Number(db.scheduleConfig.slotDuration) || 3;
-    if (!db.scheduleConfig.blockedDates) db.scheduleConfig.blockedDates = [];
-    if (!db.scheduleConfig.availableDays) db.scheduleConfig.availableDays = [1, 2, 3, 4, 5];
-    db.scheduleConfig.availableDays = db.scheduleConfig.availableDays.map(Number);
-    db.scheduleConfig.blockedDates = db.scheduleConfig.blockedDates.map(String);
-    db.scheduleConfig.slotDuration = Number(db.scheduleConfig.slotDuration) || 3;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const displayDate = currentCalendarMonth || today;
-    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-    if (monthLabel) monthLabel.textContent = `${monthNames[displayDate.getMonth()]} ${displayDate.getFullYear()}`;
-    container.innerHTML = '';
-
-    container.classList.add('snap-x', 'snap-mandatory', 'scroll-smooth');
-
-    const firstDay = new Date(displayDate.getFullYear(), displayDate.getMonth(), 1);
-    const lastDay = new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay();
-
-    for (let i = 0; i < startDayOfWeek; i++) {
-        const empty = document.createElement('div');
-        empty.className = 'flex-shrink-0 w-16 h-20 snap-center';
-        container.appendChild(empty);
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-        const currentDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
-        currentDate.setHours(0, 0, 0, 0);
-
-        if (currentDate < today) {
-            const empty = document.createElement('div');
-            empty.className = 'flex-shrink-0 w-16 h-20 flex items-center justify-center snap-center';
-            empty.innerHTML = `<span class="text-lg font-bold text-gray-200">${day}</span>`;
-            container.appendChild(empty);
-            continue;
-        }
-
-        const dayAbbrev = currentDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
-        const dayNum = currentDate.getDate();
-        const dateStr = toDateInputValue(currentDate);
-        const dayOfWeek = currentDate.getDay();
-
-        const isBlocked = db.scheduleConfig.blockedDates.includes(dateStr);
-        const isAvailableDay = db.scheduleConfig.availableDays.includes(dayOfWeek);
-
-        const pill = document.createElement('div');
-        pill.className = `flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-xl border transition-all duration-150 active:scale-95 snap-center cursor-pointer ${
-            isBlocked || !isAvailableDay ? 'bg-gray-100 text-gray-300 border-transparent cursor-not-allowed' : 'bg-white border-gray-200 hover:border-[#7f5353]'
-        }`;
-        pill.innerHTML = `<span class="text-[10px] font-bold uppercase">${dayAbbrev}</span><span class="text-lg font-bold">${dayNum}</span>`;
-
-        if (!isBlocked && isAvailableDay) {
-            pill.onclick = () => selectDate(dateStr, pill);
-        }
-        container.appendChild(pill);
-    }
-    populateTimes();
-}
-
-function prevMonth() {
-    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() - 1, 1);
-    initCalendar();
-}
-
-function nextMonth() {
-    currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 1);
-    initCalendar();
-}
-
-function selectDate(dateStr, element) {
-    selectedDate = dateStr;
-    selectedTime = null;
-    setInlineStatus('booking-inline-status', '');
-    document.querySelectorAll('#dates-container > div').forEach(el => {
-        el.classList.remove('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
-        el.classList.add('bg-white', 'border-gray-200');
-    });
-    element.classList.remove('bg-white', 'border-gray-200');
-    element.classList.add('bg-gradient-to-br', 'from-[#7f5353]', 'to-[#d59f9f]', 'text-white', 'shadow-md');
-    updateBookingSummary();
-    populateTimes();
-}
-
-async function getBookedSlots(dateStr) {
-    if (!dateStr || !window.supabase) return [];
-    const { data, error } = await window.supabase.rpc('get_booked_slots', { target_date: dateStr });
-    if (error) throw error;
-    return (data || []).map(slot => {
-        const value = typeof slot === 'string' ? slot : slot?.appointment_time;
-        return String(value || '').slice(0, 5);
-    }).filter(Boolean);
-}
-
-function parseTimeToMinutes(timeStr) {
-    const [rawHours, rawMinutes] = String(timeStr || '').split(':');
-    const hours = Number(rawHours);
-    const minutes = Number(rawMinutes);
-
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
-    return (hours * 60) + minutes;
-}
-
-function formatMinutesToTime(totalMinutes) {
-    const safeMinutes = Math.max(0, Number(totalMinutes) || 0);
-    const hours = Math.floor(safeMinutes / 60);
-    const minutes = safeMinutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function getScheduleSlotDurationMinutes() {
-    const slotDurationHours = Number(db.scheduleConfig.slotDuration);
-    const safeDurationHours = Number.isFinite(slotDurationHours) && slotDurationHours > 0 ? slotDurationHours : 3;
-    return Math.max(30, Math.round(safeDurationHours * 60));
-}
-
-async function populateTimes() {
-    const container = document.getElementById('times-container');
-    if (!container) return;
-    container.innerHTML = '';
-
-    if (!selectedDate) return container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Selecione uma data para liberar os horários.</p>';
-
-    const startMinutes = parseTimeToMinutes(db.scheduleConfig.start || '09:00');
-    const endMinutes = parseTimeToMinutes(db.scheduleConfig.end || '18:00');
-    const slotDurationMinutes = getScheduleSlotDurationMinutes();
-
-    let bookedSlots = [];
-    try {
-        bookedSlots = await getBookedSlots(selectedDate);
-    } catch (error) {
-        console.error('Erro ao consultar horários ocupados:', error);
-        setInlineStatus('booking-inline-status', 'Não foi possível conferir os horários agora. Tente novamente em instantes.', 'warning');
-    }
-
-    if (endMinutes <= startMinutes || slotDurationMinutes <= 0) {
-        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum hor\u00e1rio configurado para esta data.</p>';
-        return;
-    }
-
-    const bookedSlotsSet = new Set(bookedSlots);
-    let renderedSlots = 0;
-    for (let slotStartMinutes = startMinutes; slotStartMinutes + slotDurationMinutes <= endMinutes; slotStartMinutes += slotDurationMinutes) {
-        const timeStr = formatMinutesToTime(slotStartMinutes);
-        const isBooked = bookedSlotsSet.has(timeStr);
-
-        const btn = document.createElement('button');
-        btn.className = `py-3 px-4 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 ${isBooked ? 'bg-gray-100 text-gray-300 line-through cursor-not-allowed' : 'bg-white border border-gray-200 hover:bg-[#f7f3f2]'}`;
-        btn.textContent = isBooked ? `${timeStr} (ocupado)` : timeStr;
-        if (!isBooked) btn.onclick = () => selectTime(timeStr, btn);
-        container.appendChild(btn);
-        renderedSlots++;
-    }
-
-    if (renderedSlots === 0) {
-        container.innerHTML = '<p class="col-span-3 text-center text-gray-400 text-sm">Nenhum horário disponível nessa data. Escolha outro dia ou ajuste a agenda no painel.</p>';
-    }
-}
-
-function selectTime(time, element) {
-    selectedTime = time;
-    setInlineStatus('booking-inline-status', '');
-    document.querySelectorAll('#times-container button').forEach(el => {
-        el.classList.remove('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
-        el.classList.add('bg-white', 'border-gray-200');
-    });
-    element.classList.remove('bg-white', 'border-gray-200');
-    element.classList.add('bg-[#7f5353]/10', 'border-[#7f5353]', 'text-[#7f5353]', 'font-bold');
-    updateBookingSummary();
 }
 
 function initCalendar() {
@@ -1729,134 +1509,6 @@ function isRecurringClient() {
     return db.currentUser.type === 'Recorrente' || appointmentsCount > 0;
 }
 
-function updatePaymentOptionsForCurrentUser() {
-    const recurringClient = isRecurringClient();
-    const payment50Container = document.getElementById('payment-50-container');
-    const paymentFullContainer = document.getElementById('payment-full-container');
-    const paymentStoreContainer = document.getElementById('payment-store-container');
-    const paymentScheduledContainer = document.getElementById('payment-scheduled-container');
-
-    payment50Container?.classList.remove('hidden');
-    paymentFullContainer?.classList.toggle('hidden', !recurringClient);
-    paymentStoreContainer?.classList.toggle('hidden', !recurringClient);
-    paymentScheduledContainer?.classList.toggle('hidden', !recurringClient);
-
-    if (!recurringClient) {
-        selectPaymentMethod('50');
-    }
-}
-
-function goToPayment() {
-    if (!selectedDate || !selectedTime) {
-        setInlineStatus('booking-inline-status', 'Selecione uma data e um horário para continuar.', 'error');
-        return;
-    }
-    if (!db.currentUser) return showPage('page-login');
-
-    const totalPrice = getCartTotal();
-
-    const serviceNames = getCartServiceNames();
-    document.getElementById('pay-service-name').textContent = serviceNames;
-    document.getElementById('pay-service-date').textContent = `${formatDate(selectedDate)} às ${selectedTime}`;
-    document.getElementById('pay-service-price').textContent = formatCurrency(totalPrice);
-
-    document.getElementById('payment-50-info')?.classList.add('hidden');
-    document.getElementById('payment-full-info')?.classList.add('hidden');
-    document.getElementById('scheduled-date-container')?.classList.add('hidden');
-    setInlineStatus('payment-inline-status', '');
-
-    const payInput = document.getElementById('input-pay-date');
-    const today = new Date();
-    const max = new Date();
-    max.setDate(today.getDate() + 20);
-
-    if (payInput) {
-        payInput.min = toDateInputValue(today);
-        payInput.max = toDateInputValue(max);
-        payInput.value = '';
-    }
-
-    selectedPaymentMethod = null;
-    document.querySelectorAll('input[name="payment"]').forEach(input => { input.checked = false; });
-    updatePaymentOptionsForCurrentUser();
-    updateBookingProgress('payment');
-    updatePaymentSummaryNote();
-    showPage('page-payment');
-}
-
-function selectPaymentMethod(method) {
-    selectedPaymentMethod = method;
-    setInlineStatus('payment-inline-status', '');
-
-    document.getElementById('payment-50-info')?.classList.add('hidden');
-    document.getElementById('payment-full-info')?.classList.add('hidden');
-    document.getElementById('scheduled-date-container')?.classList.add('hidden');
-
-    const radio = document.getElementById('payment-' + method);
-    if (radio) radio.checked = true;
-
-    if (method === '50') {
-        document.getElementById('payment-50-info')?.classList.remove('hidden');
-    } else if (method === 'full') {
-        document.getElementById('payment-full-info')?.classList.remove('hidden');
-    } else if (method === 'scheduled') {
-        const dateContainer = document.getElementById('scheduled-date-container');
-        if (dateContainer) dateContainer.classList.remove('hidden');
-    }
-
-    updatePaymentSummaryNote();
-}
-
-function requestPaymentLink() {
-    const totalPrice = getCartTotal();
-    const signal = (totalPrice / 2).toFixed(2);
-    const services = getCartServiceNames();
-
-    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento do sinal (50%).%0A%0AServiço: ${services}%0AValor total: ${formatCurrency(totalPrice)}%0ASinal (50%): ${formatCurrency(parseFloat(signal))}`;
-    window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
-}
-
-function requestCardPayment() {
-    const totalPrice = getCartTotal();
-    const partialAmount = totalPrice / 2;
-    const paymentAmount = selectedPaymentMethod === '50' ? partialAmount : totalPrice;
-    const paymentLabel = selectedPaymentMethod === '50' ? 'do sinal (50%)' : 'via cartão';
-    const services = getCartServiceNames();
-
-    let message = `Olá! Vim pelo Espaço das Patroas.%0A%0AGostaria de solicitar o link de pagamento ${paymentLabel}.%0A%0AServiço: ${services}%0AValor a pagar: ${formatCurrency(paymentAmount)}`;
-    window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
-}
-
-async function copyTextToClipboard(text) {
-    if (navigator.clipboard?.writeText && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-    }
-
-    const input = document.createElement('input');
-    input.value = text;
-    input.setAttribute('readonly', '');
-    input.style.position = 'fixed';
-    input.style.left = '-9999px';
-    document.body.appendChild(input);
-    input.select();
-    input.setSelectionRange(0, input.value.length);
-
-    try {
-        return document.execCommand?.('copy') === true;
-    } finally {
-        input.remove();
-    }
-}
-
-async function copyPixKey() {
-    try {
-        const copied = await copyTextToClipboard('27997559191');
-        showToast(copied ? 'Chave PIX copiada: 27997559191' : 'N\u00e3o foi poss\u00edvel copiar. Chave PIX: 27997559191');
-    } catch (error) {
-        showToast('N\u00e3o foi poss\u00edvel copiar. Chave PIX: 27997559191');
-    }
-}
 
 async function confirmBooking() {
     const confirmButton = document.getElementById('confirm-booking-button');
@@ -1889,7 +1541,7 @@ async function confirmBooking() {
         if (bookedSlots.includes(selectedTime)) {
             selectedTime = null;
             await populateTimes();
-            setInlineStatus('payment-inline-status', 'Esse horário acabou de ser reservado. Escolha outro.', 'warning');
+            setInlineStatus('payment-inline-status', 'Esse horÃ¡rio acabou de ser reservado. Escolha outro.', 'warning');
             setButtonLoading(confirmButton, false);
             return;
         }
@@ -1930,23 +1582,10 @@ async function confirmBooking() {
         showToast('Agendamento realizado! A administradora ser\u00e1 avisada pelo aplicativo.');
     } catch (error) {
         console.error('Erro ao confirmar:', error);
-        setInlineStatus('payment-inline-status', 'Não foi possível confirmar o agendamento agora. Tente novamente.', 'error');
+        setInlineStatus('payment-inline-status', 'NÃ£o foi possÃ­vel confirmar o agendamento agora. Tente novamente.', 'error');
         setButtonLoading(confirmButton, false);
         showToast('Erro ao confirmar agendamento.');
     }
-}
-
-function renderSuccess(app) {
-    document.getElementById('success-date').textContent = formatDate(app.date);
-    document.getElementById('success-time').textContent = app.time;
-    document.getElementById('success-services-list').textContent = app.services.join(', ');
-    document.getElementById('success-price').textContent = formatCurrency(app.price);
-    document.getElementById('success-payment-method').textContent = `Pagamento: ${formatPaymentMethod(app.paymentMethod)}`;
-}
-
-function formatPaymentMethod(method) {
-    const map = { '50': '50% (Sinal)', 'full': 'Antecipado', 'store': 'Na Loja', 'scheduled': 'Programado' };
-    return map[method] || method;
 }
 
 function getServicePrice(service) {
@@ -2108,7 +1747,7 @@ async function renderMyAppointments() {
     const container = document.getElementById('my-appointments-list');
     if (!container) return;
 
-    if (!db.currentUser) return container.innerHTML = '<p class="text-center text-gray-400">Faça login para ver seus agendamentos.</p>';
+    if (!db.currentUser) return container.innerHTML = '<p class="text-center text-gray-400">FaÃ§a login para ver seus agendamentos.</p>';
 
     try {
         const { data, error } = await window.supabase
@@ -2126,7 +1765,7 @@ async function renderMyAppointments() {
                         <span class="material-symbols-outlined text-4xl text-[#d59f9f]">calendar_month</span>
                     </div>
                     <h3 class="font-headline font-bold text-lg text-[#1c1b1b] mb-2">Nenhum agendamento</h3>
-                    <p class="text-sm text-[#50453b]">Você ainda não tem agendamentos marcados.</p>
+                    <p class="text-sm text-[#50453b]">VocÃª ainda nÃ£o tem agendamentos marcados.</p>
                 </div>`;
             return;
         }
@@ -2135,7 +1774,7 @@ async function renderMyAppointments() {
             const statusColors = {
                 'Confirmado': 'bg-emerald-100 text-emerald-700',
                 'Pendente': 'bg-amber-100 text-amber-700',
-                'Concluído': 'bg-gray-100 text-gray-600',
+                'ConcluÃ­do': 'bg-gray-100 text-gray-600',
                 'Cancelado': 'bg-red-100 text-red-600'
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
@@ -2148,7 +1787,7 @@ async function renderMyAppointments() {
                     <div class="flex justify-between items-start mb-3">
                         <div>
                             <p class="font-headline font-bold text-[#1c1b1b]">${serviceNames}</p>
-                            <p class="text-xs text-[#50453b] mt-1">${formatDate(app.appointment_date)} às ${appointmentTime}</p>
+                            <p class="text-xs text-[#50453b] mt-1">${formatDate(app.appointment_date)} Ã s ${appointmentTime}</p>
                         </div>
                         <span class="px-3 py-1 ${statusColor} text-[10px] font-bold uppercase rounded-full">${app.status}</span>
                     </div>
@@ -2173,13 +1812,13 @@ function showAdminSection(section) {
     const el = document.getElementById(`adm-${section}`);
     if (el) el.classList.remove('hidden');
 
-    const titles = { clients: 'Gestão de Clientes', schedule: 'Agenda', portfolio: 'Serviços', gallery: 'Catálogo', settings: 'Configurações' };
+    const titles = { clients: 'GestÃ£o de Clientes', schedule: 'Agenda', portfolio: 'ServiÃ§os', gallery: 'CatÃ¡logo', settings: 'ConfiguraÃ§Ãµes' };
     const titleEl = document.getElementById('admin-page-title');
     if (titleEl) titleEl.textContent = titles[section] || 'Admin';
     const mobileTitleEl = document.getElementById('admin-mobile-title');
     if (mobileTitleEl) mobileTitleEl.textContent = titles[section] || 'Admin';
     const mobileSubtitleEl = document.getElementById('admin-mobile-subtitle');
-    if (mobileSubtitleEl) mobileSubtitleEl.textContent = section === 'schedule' ? 'Visão rápida da agenda' : 'Painel administrativo';
+    if (mobileSubtitleEl) mobileSubtitleEl.textContent = section === 'schedule' ? 'VisÃ£o rÃ¡pida da agenda' : 'Painel administrativo';
 
     document.querySelectorAll('.adm-nav-link').forEach(link => {
         link.classList.remove('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
@@ -2202,21 +1841,21 @@ function showAdminSection(section) {
 
     if (section === 'clients') {
         refreshAdminClientsSection().catch(error => {
-            console.error('Erro ao carregar seção de clientes admin:', error);
-            showToast('O painel abriu, mas a área de clientes não carregou por completo.');
+            console.error('Erro ao carregar seÃ§Ã£o de clientes admin:', error);
+            showToast('O painel abriu, mas a Ã¡rea de clientes nÃ£o carregou por completo.');
         });
     }
     else if (section === 'schedule') {
         renderAdminSchedule().catch(error => {
             console.error('Erro ao renderizar agenda admin:', error);
-            showToast('A agenda do painel não carregou por completo.');
+            showToast('A agenda do painel nÃ£o carregou por completo.');
         });
         renderAdminAppointments().catch(error => {
             console.error('Erro ao renderizar agendamentos admin:', error);
-            showToast('A lista de agendamentos não carregou por completo.');
+            showToast('A lista de agendamentos nÃ£o carregou por completo.');
         });
         renderNextAppointmentCard().catch(error => {
-            console.error('Erro ao carregar próximo agendamento:', error);
+            console.error('Erro ao carregar prÃ³ximo agendamento:', error);
         });
     }
     else if (section === 'portfolio') renderServicesGridAdmin();
@@ -2281,21 +1920,21 @@ async function showNextAppointmentDetails() {
 
         if (proximos && proximos.length > 0) {
             const app = proximos[0];
-            const clientName = app.users?.name || 'Cliente não identificado';
-            const clientPhone = app.users?.phone || 'Telefone não cadastrado';
+            const clientName = app.users?.name || 'Cliente nÃ£o identificado';
+            const clientPhone = app.users?.phone || 'Telefone nÃ£o cadastrado';
             const dataFormatada = formatDate(app.appointment_date);
             
-            const detalhes = `📅 DETALHES DO PRÓXIMO AGENDAMENTO\n\n` +
-                             `👤 Cliente: ${clientName}\n` +
-                             `📱 Telefone: ${clientPhone}\n` +
-                             `💅 Serviço: ${formatServiceNames(app.services_names)}\n` +
-                             `🕒 Data: ${dataFormatada} às ${app.appointment_time}\n` +
-                             `💰 Valor: ${formatCurrency(app.price)}\n` +
-                             `💳 Pagamento: ${app.payment_status}`;
+            const detalhes = `ðŸ“… DETALHES DO PRÃ“XIMO AGENDAMENTO\n\n` +
+                             `ðŸ‘¤ Cliente: ${clientName}\n` +
+                             `ðŸ“± Telefone: ${clientPhone}\n` +
+                             `ðŸ’… ServiÃ§o: ${formatServiceNames(app.services_names)}\n` +
+                             `ðŸ•’ Data: ${dataFormatada} Ã s ${app.appointment_time}\n` +
+                             `ðŸ’° Valor: ${formatCurrency(app.price)}\n` +
+                             `ðŸ’³ Pagamento: ${app.payment_status}`;
             
             alert(detalhes);
         } else {
-            alert('Não há agendamentos próximos confirmados para exibir.');
+            alert('NÃ£o hÃ¡ agendamentos prÃ³ximos confirmados para exibir.');
         }
     } catch (err) {
         console.error("Erro ao buscar detalhes:", err);
@@ -2409,7 +2048,7 @@ async function renderAdminClients() {
                             <p class="mt-1 font-bold text-[#1c1b1b]">${totalAppts}</p>
                         </div>
                         <div class="rounded-xl bg-[#f7f3f2] px-3 py-3">
-                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Último serviço</p>
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Ãšltimo serviÃ§o</p>
                             <p class="mt-1 font-bold text-[#1c1b1b]">${lastServiceName}</p>
                             <p class="text-[11px] text-stone-400 mt-1">${lastApp ? formatDate(lastApp.appointment_date) : '-'}</p>
                         </div>
@@ -2563,7 +2202,7 @@ async function renderAdminAppointments() {
                     </div>
                     <div class="mt-4 space-y-3">
                         <div class="rounded-xl bg-white px-3 py-3">
-                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Serviço</p>
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">ServiÃ§o</p>
                             <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${serviceNames}</p>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
@@ -2572,7 +2211,7 @@ async function renderAdminAppointments() {
                                 <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${appointmentDate}</p>
                             </div>
                             <div class="rounded-xl bg-white px-3 py-3">
-                                <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Horário</p>
+                                <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">HorÃ¡rio</p>
                                 <p class="mt-1 text-sm font-bold text-[#1c1b1b]">${appointmentTime}</p>
                             </div>
                         </div>
@@ -2678,7 +2317,7 @@ function renderAgendaCalendar() {
     if (!grid) return;
 
     grid.innerHTML = '';
-    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const monthNames = ["Janeiro", "Fevereiro", "MarÃ§o", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const displayDate = currentAgendaMonth;
     const year = displayDate.getFullYear();
     const month = displayDate.getMonth();
@@ -2725,7 +2364,7 @@ function renderAgendaCalendar() {
         
         let appointmentsHtml = '';
         dayAppointments.slice(0, 2).forEach(app => {
-            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${formatAppointmentTime(app.appointment_time)} - ${formatServiceNames(app.services_names).split(',')[0] || 'Serviço'}</div>`;
+            appointmentsHtml += `<div class="text-[10px] bg-primary/10 text-primary rounded px-1 py-0.5 mb-1 truncate">${formatAppointmentTime(app.appointment_time)} - ${formatServiceNames(app.services_names).split(',')[0] || 'ServiÃ§o'}</div>`;
         });
         if (dayAppointments.length > 2) {
             appointmentsHtml += `<div class="text-[10px] text-stone-400">+${dayAppointments.length - 2} mais</div>`;
@@ -2764,7 +2403,7 @@ function getAppointmentsForMonth(year, month) {
 function updateAgendaMonthLabel() {
     const label = document.getElementById('agenda-month-label');
     if (!label) return;
-    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const monthNames = ["Janeiro", "Fevereiro", "MarÃ§o", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     label.textContent = `${monthNames[currentAgendaMonth.getMonth()]}, ${currentAgendaMonth.getFullYear()}`;
 }
 
@@ -2997,7 +2636,7 @@ function getAgendaStatusPillClass(status) {
         Confirmado: 'bg-emerald-100 text-emerald-700',
         Pendente: 'bg-amber-100 text-amber-700',
         Concluido: 'bg-gray-100 text-gray-600',
-        'Concluído': 'bg-gray-100 text-gray-600',
+        'ConcluÃ­do': 'bg-gray-100 text-gray-600',
         Cancelado: 'bg-red-100 text-red-600'
     };
 
@@ -3263,7 +2902,7 @@ function handleProfileImageUpload(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
         if (!file.type.startsWith('image/')) return showToast('Selecione um arquivo de imagem.');
-        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. Máximo 5MB.');
+        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. MÃ¡ximo 5MB.');
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -3288,13 +2927,13 @@ function renderClientGallery() {
     container.innerHTML = '';
 
     if (!db.gallery || db.gallery.length === 0) {
-        container.innerHTML = '<p class="text-center text-stone-400 col-span-2 py-10">O catálogo está sendo atualizado com novas fotos. Volte em breve!</p>';
+        container.innerHTML = '<p class="text-center text-stone-400 col-span-2 py-10">O catÃ¡logo estÃ¡ sendo atualizado com novas fotos. Volte em breve!</p>';
         return;
     }
 
     db.gallery.forEach(g => {
         const imgSrc = g.image_url || 'https://via.placeholder.com/400x500?text=Foto';
-        const title = (g.title || 'Inspiração').replace(/'/g, "\\'");
+        const title = (g.title || 'InspiraÃ§Ã£o').replace(/'/g, "\\'");
         const desc = (g.description || '').replace(/'/g, "\\'");
 
         const card = document.createElement('div');
@@ -3349,7 +2988,7 @@ function renderAdminGallery() {
 
     db.gallery.forEach(g => {
         const imgSrc = g.image_url || 'https://via.placeholder.com/400x400?text=Foto';
-        const title = (g.title || 'Sem título').replace(/'/g, "\\'");
+        const title = (g.title || 'Sem tÃ­tulo').replace(/'/g, "\\'");
         const desc = (g.description || '').replace(/'/g, "\\'");
 
         const card = document.createElement('div');
@@ -3414,7 +3053,7 @@ function closeGalleryModal() {
 function previewGalleryImage(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. Máximo 5MB.');
+        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. MÃ¡ximo 5MB.');
         const reader = new FileReader();
         reader.onload = e => document.getElementById('gallery-preview-img').src = e.target.result;
         reader.readAsDataURL(file);
@@ -3428,7 +3067,7 @@ async function saveGalleryItem() {
     const imgSrc = document.getElementById('gallery-preview-img')?.src || '';
     const imageUrlToSave = imgSrc.includes('placeholder.com') ? '' : imgSrc;
 
-    if (!imageUrlToSave) return showToast('Você precisa enviar uma foto!');
+    if (!imageUrlToSave) return showToast('VocÃª precisa enviar uma foto!');
 
     try {
         await getSupabaseService().saveGalleryItem({
@@ -3438,7 +3077,7 @@ async function saveGalleryItem() {
             imageUrl: imageUrlToSave
         });
 
-        showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao Catálogo!');
+        showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao CatÃ¡logo!');
         
         await loadAllData();
         closeGalleryModal();
@@ -3447,13 +3086,13 @@ async function saveGalleryItem() {
         console.error('Erro detalhado do Supabase:', err);
         
         if (err.code === '42P01') {
-            showToast('Erro: A tabela "gallery" não foi criada no Supabase.');
+            showToast('Erro: A tabela "gallery" nÃ£o foi criada no Supabase.');
         } else if (err.code === '42501') {
-            showToast('Erro: RLS Bloqueando. Vá no Supabase e clique em "Disable RLS" na tabela gallery.');
+            showToast('Erro: RLS Bloqueando. VÃ¡ no Supabase e clique em "Disable RLS" na tabela gallery.');
         } else if (err.code === '42703') {
-            showToast('Erro: O nome de alguma coluna (title, description, image_url) está incorreto no banco.');
+            showToast('Erro: O nome de alguma coluna (title, description, image_url) estÃ¡ incorreto no banco.');
         } else if (err.message && err.message.toLowerCase().includes('payload too large')) {
-            showToast('Erro: A imagem escolhida é muito pesada para o banco de dados.');
+            showToast('Erro: A imagem escolhida Ã© muito pesada para o banco de dados.');
         } else {
             showToast('Erro desconhecido ao salvar. Pressione F12 e veja o Console.');
         }
@@ -3461,12 +3100,12 @@ async function saveGalleryItem() {
 }
 
 async function confirmDeleteGalleryItem(id) {
-    if (!confirm('Deseja excluir esta foto do catálogo?')) return;
+    if (!confirm('Deseja excluir esta foto do catÃ¡logo?')) return;
     try {
         await getSupabaseService().archiveGalleryItem(id);
         await loadAllData();
         renderAdminGallery();
-        showToast('Foto removida do catálogo.');
+        showToast('Foto removida do catÃ¡logo.');
     } catch (err) {
         showToast('Erro ao remover foto.');
     }
@@ -3495,7 +3134,7 @@ window.executarLogout = async function() {
     if (typeof showLoginStep1 === 'function') showLoginStep1();
     if (typeof showPage === 'function') showPage('page-login');
     updateManuProfilePhoto();
-    if (typeof showToast === 'function') showToast('Você saiu da conta com sucesso.');
+    if (typeof showToast === 'function') showToast('VocÃª saiu da conta com sucesso.');
 };
 
 // ==========================================

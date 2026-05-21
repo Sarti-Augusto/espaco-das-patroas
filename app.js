@@ -816,10 +816,6 @@ function checkAutoLogin() {
 // ==========================================
 // VARIABLES
 // ==========================================
-let cart = [];
-let selectedDate = null;
-let selectedTime = null;
-let selectedPaymentMethod = null;
 let currentAgendaMonth = new Date();
 let agendaView = 'month'; 
 let agendaViewTouched = false;
@@ -833,6 +829,101 @@ let currentAdminSection = 'clients';
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
 const ADMIN_NOTIFICATION_POLL_MS = 20000;
+
+function getBookingFlow() {
+    if (!window.bookingFlow) {
+        throw new Error('booking-flow.js not initialized.');
+    }
+
+    return window.bookingFlow;
+}
+
+function getCartItems() {
+    return getBookingFlow().getCart();
+}
+
+function replaceCartItems(nextCart) {
+    return getBookingFlow().setCart(nextCart);
+}
+
+function clearCartItems() {
+    return getBookingFlow().clearCart();
+}
+
+function toggleCartItemState(service) {
+    return getBookingFlow().toggleCartItem(service);
+}
+
+function getSelectedDateValue() {
+    return getBookingFlow().getSelectedDate();
+}
+
+function setSelectedDateValue(value) {
+    return getBookingFlow().setSelectedDate(value);
+}
+
+function getSelectedTimeValue() {
+    return getBookingFlow().getSelectedTime();
+}
+
+function setSelectedTimeValue(value) {
+    return getBookingFlow().setSelectedTime(value);
+}
+
+function getSelectedPaymentMethodValue() {
+    return getBookingFlow().getSelectedPaymentMethod();
+}
+
+function setSelectedPaymentMethodValue(value) {
+    return getBookingFlow().setSelectedPaymentMethod(value);
+}
+
+function resetBookingSelection() {
+    return getBookingFlow().resetSelection();
+}
+
+function resetBookingFlowState() {
+    return getBookingFlow().resetAll();
+}
+
+Object.defineProperties(window, {
+    cart: {
+        configurable: true,
+        get() {
+            return getCartItems();
+        },
+        set(value) {
+            replaceCartItems(value);
+        }
+    },
+    selectedDate: {
+        configurable: true,
+        get() {
+            return getSelectedDateValue();
+        },
+        set(value) {
+            setSelectedDateValue(value);
+        }
+    },
+    selectedTime: {
+        configurable: true,
+        get() {
+            return getSelectedTimeValue();
+        },
+        set(value) {
+            setSelectedTimeValue(value);
+        }
+    },
+    selectedPaymentMethod: {
+        configurable: true,
+        get() {
+            return getSelectedPaymentMethodValue();
+        },
+        set(value) {
+            setSelectedPaymentMethodValue(value);
+        }
+    }
+});
 
 // ==========================================
 // NAVIGATION E BOTTOM NAV
@@ -894,7 +985,7 @@ async function switchToClientView() {
     document.getElementById('admin-view').classList.add('hidden');
     document.getElementById('client-view').classList.remove('hidden');
     stopAdminAppointmentNotifications();
-    cart = [];
+    clearCartItems();
     await clearSession();
     showLoginStep1();
     showPage('page-login');
@@ -905,10 +996,7 @@ function goToHome() {
         showPage('page-login');
         return;
     }
-    cart = [];
-    selectedDate = null;
-    selectedTime = null;
-    selectedPaymentMethod = null;
+    resetBookingFlowState();
     hideAllPages();
     document.getElementById('page-home').classList.add('active');
     renderServices();
@@ -1196,7 +1284,7 @@ function renderServices() {
     }
 
     db.services.forEach(s => {
-        const isInCart = cart.some(item => item.id === s.id);
+        const isInCart = getCartItems().some(item => item.id === s.id);
         const imgSrc = normalizeImageUrl(s.image_url || s.img || '');
         const displayImg = imgSrc || SERVICE_CARD_PLACEHOLDER;
         
@@ -1230,40 +1318,16 @@ function toggleCart(id) {
     const service = db.services.find(s => s.id == id);
     if (!service) return;
     
-    const index = cart.findIndex(item => item.id == id);
-    if (index > -1) {
-        cart.splice(index, 1);
-    } else {
-        cart.push(service);
-    }
+    toggleCartItemState(service);
     renderServices();
 }
 
 function updateCartFab() {
-    const fab = document.getElementById('cart-fab');
-    if (!fab) return;
-    if (cart.length > 0) {
-        fab.classList.remove('hidden');
-        fab.innerHTML = `<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_bag</span><span style="position:absolute; top:-5px; right:-5px; background:#d59f9f; color:white; border-radius:50%; width:22px; height:22px; font-size:12px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${cart.length}</span>`;
-        fab.onclick = proceedToBooking;
-    } else {
-        fab.classList.add('hidden');
-    }
+    getBookingFlow().updateCartFab({ onClick: proceedToBooking });
 }
 
 function updateBookingProgress(step) {
-    ['booking-stepper', 'payment-stepper'].forEach(containerId => {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-
-        container.querySelectorAll('[data-step]').forEach(item => {
-            const isActive = item.dataset.step === step;
-            item.classList.toggle('bg-[#7f5353]', isActive);
-            item.classList.toggle('text-white', isActive);
-            item.classList.toggle('bg-[#f7f3f2]', !isActive);
-            item.classList.toggle('text-[#82756a]', !isActive);
-        });
-    });
+    getBookingFlow().updateBookingProgress(step);
 }
 
 function updateBookingSummary() {
@@ -1374,17 +1438,11 @@ function proceedToBookingActual() {
         if (mainContent) mainContent.classList.remove('opacity-30', 'pointer-events-none');
         if (bottomBtn) bottomBtn.classList.remove('hidden');
 
-        const listEl = document.getElementById('selected-services-list');
-        if (listEl) {
-            listEl.innerHTML = '';
-            cart.forEach(s => {
-                const imgSrc = s.image_url || s.img || 'https://via.placeholder.com/100';
-                const item = document.createElement('div');
-                item.className = 'flex items-center gap-3 p-4 bg-[#f7f3f2] rounded-xl';
-                item.innerHTML = `<div class="h-12 w-12 rounded-lg bg-cover bg-center" style="background-image: url('${imgSrc}')"></div><div><p class="font-bold text-sm text-[#1c1b1b]">${s.name}</p><p class="text-xs text-[#50453b]">${formatCurrency(s.price)}</p></div>`;
-                listEl.appendChild(item);
-            });
-        }
+        getBookingFlow().renderSelectedServices({
+            formatCurrency,
+            normalizeImageUrl,
+            placeholderUrl: 'https://via.placeholder.com/100?text=Servico'
+        });
         initCalendar();
         showPage('page-booking');
     }
@@ -1809,11 +1867,67 @@ function getServicePrice(service) {
 }
 
 function getCartTotal() {
-    return cart.reduce((acc, item) => acc + getServicePrice(item), 0);
+    return getBookingFlow().getCartTotal(getServicePrice);
 }
 
 function getCartServiceNames() {
-    return cart.map(s => s.name).filter(Boolean).join(', ');
+    return getBookingFlow().getCartServiceNames();
+}
+
+function updateBookingSummary() {
+    getBookingFlow().updateBookingSummary({
+        servicesLabel: getCartServiceNames() || 'Selecione os servi\u00e7os',
+        dateLabel: getSelectedDateValue() ? formatDate(getSelectedDateValue()) : 'Escolha uma data',
+        timeLabel: getSelectedTimeValue() || 'Escolha um hor\u00e1rio',
+        totalLabel: formatCurrency(getCartTotal())
+    });
+}
+
+function updatePaymentSummaryNote() {
+    getBookingFlow().updatePaymentSummaryNote({
+        recurringClient: isRecurringClient()
+    });
+}
+
+function updatePaymentOptionsForCurrentUser() {
+    getBookingFlow().updatePaymentOptions({
+        recurringClient: isRecurringClient(),
+        onForceMethod: selectPaymentMethod
+    });
+}
+
+function goToPayment() {
+    if (!selectedDate || !selectedTime) {
+        setInlineStatus('booking-inline-status', 'Selecione uma data e um hor\u00e1rio para continuar.', 'error');
+        return;
+    }
+    if (!db.currentUser) return showPage('page-login');
+
+    const totalPrice = getCartTotal();
+    const today = new Date();
+    const max = new Date();
+    max.setDate(today.getDate() + 20);
+
+    setInlineStatus('payment-inline-status', '');
+    getBookingFlow().preparePaymentPage({
+        serviceNames: getCartServiceNames(),
+        dateLabel: `${formatDate(selectedDate)} \u00e0s ${selectedTime}`,
+        totalLabel: formatCurrency(totalPrice),
+        minDate: toDateInputValue(today),
+        maxDate: toDateInputValue(max)
+    });
+
+    updatePaymentOptionsForCurrentUser();
+    updateBookingProgress('payment');
+    updatePaymentSummaryNote();
+    showPage('page-payment');
+}
+
+function selectPaymentMethod(method) {
+    selectedPaymentMethod = method;
+    setInlineStatus('payment-inline-status', '');
+    getBookingFlow().applyPaymentMethodUi(method);
+    updatePaymentSummaryNote();
 }
 
 function formatServiceNames(value) {
@@ -3243,10 +3357,7 @@ window.confirmLogout = function() {
 
 window.executarLogout = async function() {
     showToast('Saindo da conta...');
-    cart = [];
-    selectedDate = null;
-    selectedTime = null;
-    selectedPaymentMethod = null;
+    resetBookingFlowState();
 
     await clearSession();
 

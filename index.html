@@ -915,11 +915,10 @@
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Foto</label>
                     <div class="flex items-center gap-4">
                         <img id="service-preview-img" src="https://via.placeholder.com/400x400?text=Serviço" alt="Preview" class="w-20 h-20 rounded-xl object-cover">
-                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-[#f7f3f2] rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
-                            <span class="material-symbols-outlined">upload</span>
-                            Upload
-                            <input type="file" class="hidden" accept="image/*" onchange="previewServiceImage(this)"/>
-                        </label>
+                        <div class="flex-1">
+                            <input id="service-img-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full bg-[#f7f3f2] border border-[#d4c4b7] rounded-xl px-4 py-3 text-sm file:mr-3 file:border-0 file:rounded-lg file:bg-[#7f5353] file:px-3 file:py-2 file:text-white file:font-bold" onchange="previewServiceImage(this)"/>
+                            <p id="service-image-status" class="text-xs text-stone-500 mt-2">PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -949,11 +948,10 @@
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Foto da Unha</label>
                     <div class="flex flex-col items-center gap-4 bg-[#f7f3f2] p-4 rounded-xl border-2 border-dashed border-[#d4c4b7]">
                         <img id="gallery-preview-img" src="https://via.placeholder.com/400x400?text=Sua+Foto" alt="Preview" class="w-32 h-32 rounded-xl object-cover shadow-sm">
-                        <label class="cursor-pointer inline-flex items-center gap-2 px-6 py-2 bg-white rounded-xl text-[#7f5353] font-bold text-sm hover:bg-gray-50 transition-colors shadow-sm">
-                            <span class="material-symbols-outlined">upload</span>
-                            Carregar Imagem
-                            <input type="file" class="hidden" accept="image/*" onchange="previewGalleryImage(this)"/>
-                        </label>
+                        <div class="w-full">
+                            <input id="gallery-img-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full bg-white border border-[#d4c4b7] rounded-xl px-4 py-3 text-sm file:mr-3 file:border-0 file:rounded-lg file:bg-[#7f5353] file:px-3 file:py-2 file:text-white file:font-bold" onchange="previewGalleryImage(this)"/>
+                            <p id="gallery-image-status" class="text-xs text-stone-500 mt-2 text-center">PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.</p>
+                        </div>
                     </div>
                 </div>
             </div>

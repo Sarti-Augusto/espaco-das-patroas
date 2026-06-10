@@ -6,6 +6,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const APP_BASE_URL = 'https://espaco-das-patroas.vercel.app';
 const SERVICE_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x400?text=Servico';
 const SERVICE_CARD_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Servico';
+const IMAGE_UPLOAD_BUCKET = 'service-images';
+const IMAGE_UPLOAD_MAX_SIZE = 5 * 1024 * 1024;
+const IMAGE_UPLOAD_MAX_DIMENSION = 1200;
+const IMAGE_UPLOAD_QUALITY = 0.82;
 
 let db = {
     users: [],
@@ -2552,6 +2556,7 @@ function openAddServiceModal() {
     document.getElementById('service-desc').value = '';
     document.getElementById('service-price').value = '';
     document.getElementById("service-preview-img").src = SERVICE_IMAGE_PLACEHOLDER;
+    resetServiceImageInput();
     document.getElementById('service-modal').classList.remove('hidden');
     document.getElementById('service-modal').classList.add('flex');
 }
@@ -2567,6 +2572,7 @@ function openEditServiceModal(id) {
     document.getElementById('service-desc').value = service.description || service.desc || '';
     document.getElementById('service-price').value = service.price;
     document.getElementById('service-preview-img').src = imgSrc;
+    resetServiceImageInput('Imagem atual mantida. Importe outra para substituir.');
     document.getElementById('service-modal').classList.remove('hidden');
     document.getElementById('service-modal').classList.add('flex');
 }
@@ -2576,26 +2582,143 @@ function closeServiceModal() {
     document.getElementById('service-modal').classList.remove('flex');
 }
 
-function previewServiceImage(input) {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        if (!file.type.startsWith("image/")) {
-            showToast("Selecione um arquivo de imagem v\u00e1lido.");
-            input.value = "";
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast("Imagem muito grande. M\u00e1ximo 5MB.");
-            input.value = "";
-            return;
-        }
+async function previewServiceImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+        const dataUrl = await prepareImageForUpload(file);
+        const preview = document.getElementById("service-preview-img");
+        if (preview) preview.src = dataUrl;
+        setImageUploadStatus('service', 'Imagem pronta para salvar.', 'success');
+    } catch (error) {
+        input.value = "";
+        setImageUploadStatus('service', error.message || 'Nao foi possivel carregar a imagem.', 'error');
+        showToast(error.message || 'Nao foi possivel carregar a imagem.');
+    }
+}
+
+function resetServiceImageInput(message = 'PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.') {
+    const input = document.getElementById('service-img-input');
+    if (input) input.value = '';
+    setImageUploadStatus('service', message);
+}
+
+function resetGalleryImageInput(message = 'PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.') {
+    const input = document.getElementById('gallery-img-input');
+    if (input) input.value = '';
+    setImageUploadStatus('gallery', message);
+}
+
+function setImageUploadStatus(scope, message, type = 'neutral') {
+    const status = document.getElementById(`${scope}-image-status`);
+    if (!status) return;
+
+    status.textContent = message;
+    status.classList.remove('text-stone-500', 'text-green-700', 'text-red-700');
+    const colorClass = type === 'success' ? 'text-green-700' : type === 'error' ? 'text-red-700' : 'text-stone-500';
+    status.classList.add(colorClass);
+}
+
+async function prepareImageForUpload(file) {
+    if (!file.type.startsWith('image/')) {
+        throw new Error('Selecione um arquivo de imagem valido.');
+    }
+
+    if (file.size > IMAGE_UPLOAD_MAX_SIZE) {
+        throw new Error('Imagem muito grande. Maximo 5MB.');
+    }
+
+    return optimizeImageFile(file);
+}
+
+function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const preview = document.getElementById("service-preview-img");
-            if (preview) preview.src = e.target.result;
+        reader.onerror = () => reject(new Error('Nao foi possivel ler a imagem.'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('Arquivo de imagem invalido.'));
+            img.onload = () => resolve({ img, dataUrl: reader.result });
+            img.src = reader.result;
         };
         reader.readAsDataURL(file);
+    });
+}
+
+async function optimizeImageFile(file) {
+    const { img, dataUrl } = await loadImageFromFile(file);
+    const shouldKeepOriginal = file.type === 'image/gif';
+    if (shouldKeepOriginal) return dataUrl;
+
+    const scale = Math.min(1, IMAGE_UPLOAD_MAX_DIMENSION / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    return canvas.toDataURL(outputType, IMAGE_UPLOAD_QUALITY);
+}
+
+function dataUrlToBlob(dataUrl) {
+    const [header, base64] = dataUrl.split(',');
+    const mimeType = header.match(/data:(.*?);base64/)?.[1] || 'image/jpeg';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
     }
+
+    return new Blob([bytes], { type: mimeType });
+}
+
+function getImageExtension(mimeType) {
+    const extensions = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif'
+    };
+    return extensions[mimeType] || 'jpg';
+}
+
+function createRandomImageId() {
+    return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createStorageImagePath(folder, entityId, mimeType) {
+    const safeFolder = String(folder || 'catalog').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+    const safeId = String(entityId || createRandomImageId()).replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+    return `${safeFolder}/${safeId}/${Date.now()}-${createRandomImageId()}.${getImageExtension(mimeType)}`;
+}
+
+async function uploadImageDataUrl(dataUrl, folder, entityId) {
+    if (!dataUrl.startsWith('data:image/')) return dataUrl;
+    if (!window.supabase?.storage) {
+        throw new Error('Supabase Storage nao esta disponivel.');
+    }
+
+    const blob = dataUrlToBlob(dataUrl);
+    const path = createStorageImagePath(folder, entityId, blob.type);
+    const { error } = await window.supabase.storage
+        .from(IMAGE_UPLOAD_BUCKET)
+        .upload(path, blob, {
+            contentType: blob.type,
+            cacheControl: '31536000',
+            upsert: false
+        });
+
+    if (error) throw error;
+
+    const { data } = window.supabase.storage.from(IMAGE_UPLOAD_BUCKET).getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error('Nao foi possivel gerar a URL publica da imagem.');
+    return data.publicUrl;
 }
 async function saveService() {
     const id = document.getElementById("service-id").value;
@@ -2604,10 +2727,16 @@ async function saveService() {
     const price = parseFloat(document.getElementById("service-price").value);
     const imgSrc = document.getElementById("service-preview-img")?.src || "";
     const isPlaceholder = imgSrc.includes("placeholder.com") || !imgSrc;
-    const imageUrlToSave = isPlaceholder ? "" : imgSrc;
+    let imageUrlToSave = isPlaceholder ? "" : imgSrc;
     if (!name) return showToast("Digite o nome do servi\u00e7o.");
     if (isNaN(price) || price < 0) return showToast("Digite um pre\u00e7o v\u00e1lido.");
     try {
+        if (imageUrlToSave.startsWith('data:image/')) {
+            setImageUploadStatus('service', 'Enviando imagem...', 'neutral');
+            imageUrlToSave = await uploadImageDataUrl(imageUrlToSave, 'services', id || createRandomImageId());
+            setImageUploadStatus('service', 'Imagem enviada com sucesso.', 'success');
+        }
+
         if (id) {
             await supabaseUpdateService(id, { name, description: desc, price, image_url: imageUrlToSave });
             showToast("Servi\u00e7o atualizado!");
@@ -2621,7 +2750,8 @@ async function saveService() {
         renderServices();
     } catch (error) {
         console.error("Erro ao salvar:", error);
-        showToast("Erro ao salvar servi\u00e7o.");
+        setImageUploadStatus('service', error.message || 'Erro ao salvar servico.', 'error');
+        showToast(error.message || "Erro ao salvar servi\u00e7o.");
     }
 }
 async function confirmDeleteService(id) {
@@ -2777,6 +2907,7 @@ function openAddGalleryModal() {
     document.getElementById('gallery-title').value = '';
     document.getElementById('gallery-desc').value = '';
     document.getElementById('gallery-preview-img').src = 'https://via.placeholder.com/400x400?text=Sua+Foto';
+    resetGalleryImageInput();
     document.getElementById('gallery-modal').classList.remove('hidden');
     document.getElementById('gallery-modal').classList.add('flex');
 }
@@ -2788,6 +2919,7 @@ function openEditGalleryModal(id) {
     document.getElementById('gallery-title').value = item.title || '';
     document.getElementById('gallery-desc').value = item.description || '';
     document.getElementById('gallery-preview-img').src = item.image_url || 'https://via.placeholder.com/400x400?text=Sua+Foto';
+    resetGalleryImageInput('Imagem atual mantida. Importe outra para substituir.');
     document.getElementById('gallery-modal').classList.remove('hidden');
     document.getElementById('gallery-modal').classList.add('flex');
 }
@@ -2797,13 +2929,19 @@ function closeGalleryModal() {
     document.getElementById('gallery-modal').classList.remove('flex');
 }
 
-function previewGalleryImage(input) {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        if (file.size > 5 * 1024 * 1024) return showToast('Imagem muito grande. MÃ¡ximo 5MB.');
-        const reader = new FileReader();
-        reader.onload = e => document.getElementById('gallery-preview-img').src = e.target.result;
-        reader.readAsDataURL(file);
+async function previewGalleryImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+        const dataUrl = await prepareImageForUpload(file);
+        const preview = document.getElementById('gallery-preview-img');
+        if (preview) preview.src = dataUrl;
+        setImageUploadStatus('gallery', 'Imagem pronta para salvar.', 'success');
+    } catch (error) {
+        input.value = '';
+        setImageUploadStatus('gallery', error.message || 'Nao foi possivel carregar a imagem.', 'error');
+        showToast(error.message || 'Nao foi possivel carregar a imagem.');
     }
 }
 
@@ -2812,11 +2950,17 @@ async function saveGalleryItem() {
     const title = sanitizeString(document.getElementById('gallery-title').value.trim());
     const description = sanitizeString(document.getElementById('gallery-desc').value.trim());
     const imgSrc = document.getElementById('gallery-preview-img')?.src || '';
-    const imageUrlToSave = imgSrc.includes('placeholder.com') ? '' : imgSrc;
+    let imageUrlToSave = imgSrc.includes('placeholder.com') ? '' : imgSrc;
 
     if (!imageUrlToSave) return showToast('VocÃª precisa enviar uma foto!');
 
     try {
+        if (imageUrlToSave.startsWith('data:image/')) {
+            setImageUploadStatus('gallery', 'Enviando imagem...', 'neutral');
+            imageUrlToSave = await uploadImageDataUrl(imageUrlToSave, 'gallery', id || createRandomImageId());
+            setImageUploadStatus('gallery', 'Imagem enviada com sucesso.', 'success');
+        }
+
         await getSupabaseService().saveGalleryItem({
             id,
             title,
@@ -2841,7 +2985,8 @@ async function saveGalleryItem() {
         } else if (err.message && err.message.toLowerCase().includes('payload too large')) {
             showToast('Erro: A imagem escolhida Ã© muito pesada para o banco de dados.');
         } else {
-            showToast('Erro desconhecido ao salvar. Pressione F12 e veja o Console.');
+            setImageUploadStatus('gallery', err.message || 'Erro ao salvar foto.', 'error');
+            showToast(err.message || 'Erro desconhecido ao salvar. Pressione F12 e veja o Console.');
         }
     }
 }

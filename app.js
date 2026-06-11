@@ -8,8 +8,10 @@ const SERVICE_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x400?text=Serv
 const SERVICE_CARD_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Servico';
 const IMAGE_UPLOAD_BUCKET = 'service-images';
 const IMAGE_UPLOAD_MAX_SIZE = 5 * 1024 * 1024;
+const IMAGE_SOURCE_MAX_SIZE = 25 * 1024 * 1024;
 const IMAGE_UPLOAD_MAX_DIMENSION = 1200;
 const IMAGE_UPLOAD_QUALITY = 0.82;
+const ALLOWED_UPLOAD_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 let db = {
     users: [],
@@ -25,6 +27,8 @@ let isDbLoaded = false;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 let authListenerAttached = false;
 let lastAuthErrorMessage = '';
+let selectedServiceImageFile = null;
+let selectedGalleryImageFile = null;
 
 function getSupabaseService() {
     if (window.supabaseService) {
@@ -2587,26 +2591,30 @@ async function previewServiceImage(input) {
     if (!file) return;
 
     try {
-        const dataUrl = await prepareImageForUpload(file);
+        validateImageFile(file);
+        selectedServiceImageFile = file;
         const preview = document.getElementById("service-preview-img");
-        if (preview) preview.src = dataUrl;
-        setImageUploadStatus('service', 'Imagem pronta para salvar.', 'success');
+        if (preview) preview.src = URL.createObjectURL(file);
+        setImageUploadStatus('service', 'Imagem selecionada. Clique em Salvar para enviar.', 'success');
     } catch (error) {
         input.value = "";
+        selectedServiceImageFile = null;
         setImageUploadStatus('service', error.message || 'Nao foi possivel carregar a imagem.', 'error');
         showToast(error.message || 'Nao foi possivel carregar a imagem.');
     }
 }
 
-function resetServiceImageInput(message = 'PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.') {
+function resetServiceImageInput(message = 'Imagem ate 25MB. Fotos grandes serao otimizadas automaticamente.') {
     const input = document.getElementById('service-img-input');
     if (input) input.value = '';
+    selectedServiceImageFile = null;
     setImageUploadStatus('service', message);
 }
 
-function resetGalleryImageInput(message = 'PNG, JPG, WEBP ou GIF. A imagem sera otimizada automaticamente.') {
+function resetGalleryImageInput(message = 'Imagem ate 25MB. Fotos grandes serao otimizadas automaticamente.') {
     const input = document.getElementById('gallery-img-input');
     if (input) input.value = '';
+    selectedGalleryImageFile = null;
     setImageUploadStatus('gallery', message);
 }
 
@@ -2620,16 +2628,14 @@ function setImageUploadStatus(scope, message, type = 'neutral') {
     status.classList.add(colorClass);
 }
 
-async function prepareImageForUpload(file) {
+function validateImageFile(file) {
     if (!file.type.startsWith('image/')) {
         throw new Error('Selecione um arquivo de imagem valido.');
     }
 
-    if (file.size > IMAGE_UPLOAD_MAX_SIZE) {
-        throw new Error('Imagem muito grande. Maximo 5MB.');
+    if (file.size > IMAGE_SOURCE_MAX_SIZE) {
+        throw new Error('Imagem muito grande. Maximo 25MB.');
     }
-
-    return optimizeImageFile(file);
 }
 
 function loadImageFromFile(file) {
@@ -2663,6 +2669,33 @@ async function optimizeImageFile(file) {
 
     const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
     return canvas.toDataURL(outputType, IMAGE_UPLOAD_QUALITY);
+}
+
+async function optimizeImageFileToBlob(file) {
+    const { img } = await loadImageFromFile(file);
+    const scale = Math.min(1, IMAGE_UPLOAD_MAX_DIMENSION / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(result => {
+            if (result) resolve(result);
+            else reject(new Error('Nao foi possivel otimizar a imagem.'));
+        }, outputType, IMAGE_UPLOAD_QUALITY);
+    });
+
+    if (blob.size > IMAGE_UPLOAD_MAX_SIZE) {
+        throw new Error('Imagem muito grande mesmo apos otimizacao. Tente outra foto.');
+    }
+
+    return blob;
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -2720,6 +2753,31 @@ async function uploadImageDataUrl(dataUrl, folder, entityId) {
     if (!data?.publicUrl) throw new Error('Nao foi possivel gerar a URL publica da imagem.');
     return data.publicUrl;
 }
+
+async function uploadImageFile(file, folder, entityId) {
+    validateImageFile(file);
+    if (!window.supabase?.storage) {
+        throw new Error('Supabase Storage nao esta disponivel.');
+    }
+
+    const canUploadOriginal = file.size <= IMAGE_UPLOAD_MAX_SIZE && ALLOWED_UPLOAD_MIME_TYPES.includes(file.type);
+    const body = canUploadOriginal ? file : await optimizeImageFileToBlob(file);
+    const contentType = body.type || 'image/jpeg';
+    const path = createStorageImagePath(folder, entityId, contentType);
+    const { error } = await window.supabase.storage
+        .from(IMAGE_UPLOAD_BUCKET)
+        .upload(path, body, {
+            contentType,
+            cacheControl: '31536000',
+            upsert: false
+        });
+
+    if (error) throw error;
+
+    const { data } = window.supabase.storage.from(IMAGE_UPLOAD_BUCKET).getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error('Nao foi possivel gerar a URL publica da imagem.');
+    return data.publicUrl;
+}
 async function saveService() {
     const id = document.getElementById("service-id").value;
     const name = sanitizeString(document.getElementById("service-name").value.trim());
@@ -2731,7 +2789,11 @@ async function saveService() {
     if (!name) return showToast("Digite o nome do servi\u00e7o.");
     if (isNaN(price) || price < 0) return showToast("Digite um pre\u00e7o v\u00e1lido.");
     try {
-        if (imageUrlToSave.startsWith('data:image/')) {
+        if (selectedServiceImageFile) {
+            setImageUploadStatus('service', 'Enviando imagem...', 'neutral');
+            imageUrlToSave = await uploadImageFile(selectedServiceImageFile, 'services', id || createRandomImageId());
+            setImageUploadStatus('service', 'Imagem enviada com sucesso.', 'success');
+        } else if (imageUrlToSave.startsWith('data:image/')) {
             setImageUploadStatus('service', 'Enviando imagem...', 'neutral');
             imageUrlToSave = await uploadImageDataUrl(imageUrlToSave, 'services', id || createRandomImageId());
             setImageUploadStatus('service', 'Imagem enviada com sucesso.', 'success');
@@ -2934,12 +2996,14 @@ async function previewGalleryImage(input) {
     if (!file) return;
 
     try {
-        const dataUrl = await prepareImageForUpload(file);
+        validateImageFile(file);
+        selectedGalleryImageFile = file;
         const preview = document.getElementById('gallery-preview-img');
-        if (preview) preview.src = dataUrl;
-        setImageUploadStatus('gallery', 'Imagem pronta para salvar.', 'success');
+        if (preview) preview.src = URL.createObjectURL(file);
+        setImageUploadStatus('gallery', 'Imagem selecionada. Clique em Salvar para enviar.', 'success');
     } catch (error) {
         input.value = '';
+        selectedGalleryImageFile = null;
         setImageUploadStatus('gallery', error.message || 'Nao foi possivel carregar a imagem.', 'error');
         showToast(error.message || 'Nao foi possivel carregar a imagem.');
     }
@@ -2955,7 +3019,11 @@ async function saveGalleryItem() {
     if (!imageUrlToSave) return showToast('VocÃª precisa enviar uma foto!');
 
     try {
-        if (imageUrlToSave.startsWith('data:image/')) {
+        if (selectedGalleryImageFile) {
+            setImageUploadStatus('gallery', 'Enviando imagem...', 'neutral');
+            imageUrlToSave = await uploadImageFile(selectedGalleryImageFile, 'gallery', id || createRandomImageId());
+            setImageUploadStatus('gallery', 'Imagem enviada com sucesso.', 'success');
+        } else if (imageUrlToSave.startsWith('data:image/')) {
             setImageUploadStatus('gallery', 'Enviando imagem...', 'neutral');
             imageUrlToSave = await uploadImageDataUrl(imageUrlToSave, 'gallery', id || createRandomImageId());
             setImageUploadStatus('gallery', 'Imagem enviada com sucesso.', 'success');

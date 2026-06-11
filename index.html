@@ -57,6 +57,24 @@
         .page.active { display: flex !important; flex-direction: column; }
         .hidden { display: none !important; }
         .admin-mobile-list { display: none; }
+        #admin-view { background: #f8f5f2; color: #1c1b1b; }
+        #admin-view .rounded-2xl,
+        #admin-view .rounded-xl { border-radius: 8px !important; }
+        .admin-sidebar { background: #fffaf8; border-color: rgba(127, 83, 83, 0.12); box-shadow: 1px 0 0 rgba(127, 83, 83, 0.04); }
+        .admin-brand-mark { width: 36px; height: 36px; border-radius: 8px; background: #7f5353; color: white; display: grid; place-items: center; }
+        .admin-topbar { background: rgba(255, 250, 248, 0.88); border-color: rgba(127, 83, 83, 0.12); }
+        .admin-shell-main { max-width: 1440px; }
+        .admin-section-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.5rem; }
+        .admin-section-title { font-size: 1.75rem; line-height: 2.1rem; font-weight: 800; color: #513737; letter-spacing: 0; }
+        .admin-section-subtitle { color: #6f625a; font-size: 0.875rem; margin-top: 0.25rem; }
+        .admin-panel { background: #fffaf8; border: 1px solid rgba(127, 83, 83, 0.12); border-radius: 8px; box-shadow: 0 1px 2px rgba(50, 36, 30, 0.04); }
+        .admin-stat-card { background: #fffaf8; border: 1px solid rgba(127, 83, 83, 0.12); border-radius: 8px; padding: 1.25rem; }
+        .admin-primary-action { min-height: 44px; border-radius: 8px; background: #7f5353; color: white; font-size: 0.8rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; }
+        .admin-primary-action:hover { background: #6b4848; }
+        .adm-nav-link { border-radius: 8px !important; font-weight: 700; }
+        .adm-nav-link .material-symbols-outlined { font-size: 20px; }
+        #admin-view table th { color: #7b6b61; background: #f5efeb; }
+        #admin-view table tbody tr { border-bottom: 1px solid rgba(127, 83, 83, 0.08); }
 
         @media (max-width: 768px) {
             #admin-view:not(.hidden) { display: flex !important; flex-direction: column !important; }
@@ -78,6 +96,8 @@
             #dates-container { display: flex !important; overflow-x: auto !important; gap: 10px !important; padding-bottom: 15px !important; -webkit-overflow-scrolling: touch; }
             #dates-container > div { min-width: 70px !important; flex-shrink: 0 !important; }
             #times-container { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+            .admin-section-header { align-items: stretch; flex-direction: column; }
+            .admin-primary-action { width: 100%; }
         }
     </style>
 </head>
@@ -525,12 +545,17 @@
     </div>
 
     <div id="admin-view" class="hidden lg:flex min-h-screen">
-        <aside class="fixed left-0 top-0 h-screen flex flex-col py-8 w-64 bg-[#fdf8f8] z-50 border-r border-[#d4c4b7]/10">
-            <div class="px-8 mb-12">
-                <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
-                <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-1">Administração</p>
+        <aside class="admin-sidebar fixed left-0 top-0 h-screen flex flex-col py-6 w-64 z-50 border-r">
+            <div class="px-6 mb-8 flex items-center gap-3">
+                <div class="admin-brand-mark">
+                    <span class="material-symbols-outlined text-[20px]">spa</span>
+                </div>
+                <div>
+                    <h1 class="text-base font-extrabold tracking-tight text-[#513737]">Espaço das Patroas</h1>
+                    <p class="text-[10px] uppercase tracking-widest text-stone-400 mt-0.5">Administração</p>
+                </div>
             </div>
-            <nav class="flex-1 px-4 space-y-2">
+            <nav class="flex-1 px-3 space-y-1">
                 <a data-admin-section="clients" onclick="showAdminSection('clients')" class="adm-nav-link flex items-center gap-3 px-4 py-3 text-stone-500 hover:text-[#7f5353] hover:bg-[#f7f3f2]/50 transition-colors duration-300 rounded-xl cursor-pointer">
                     <span class="material-symbols-outlined">group</span>
                     <span>Clientes</span>
@@ -552,8 +577,8 @@
                     <span>Configurações</span>
                 </a>
             </nav>
-            <div class="px-6 mt-auto">
-                <button onclick="confirmLogout()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+            <div class="px-4 mt-auto">
+                <button onclick="confirmLogout()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] rounded-xl font-bold text-sm hover:bg-[#efe7e3] transition-opacity flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined text-sm">person</span>
                     Sair do Admin
                 </button>
@@ -586,7 +611,7 @@
         </div>
 
         <div id="admin-mobile-menu" class="lg:hidden hidden fixed inset-0 z-50 bg-black/50" onclick="toggleAdminMenu()">
-            <div class="bg-[#fdf8f8] w-72 h-full p-6 flex flex-col" onclick="event.stopPropagation()">
+            <div class="bg-[#fffaf8] w-72 h-full p-6 flex flex-col" onclick="event.stopPropagation()">
                 <div class="flex justify-between items-center mb-8">
                     <div>
                         <h1 class="text-xl font-bold tracking-tighter text-[#7f5353]">Espaço das Patroas</h1>
@@ -596,7 +621,7 @@
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                <div class="rounded-2xl bg-[#f7f3f2] p-4 mb-6">
+                <div class="admin-panel p-4 mb-6">
                     <div class="flex items-center gap-3">
                         <img src="https://via.placeholder.com/150?text=Manu" alt="Avatar admin" class="w-12 h-12 rounded-full object-cover" id="admin-mobile-menu-avatar">
                         <div>
@@ -628,7 +653,7 @@
                     </a>
                 </nav>
                 <div class="mt-auto pt-6">
-                    <button onclick="switchToClientView()" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white rounded-xl font-bold text-sm shadow-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                    <button onclick="switchToClientView()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] rounded-xl font-bold text-sm hover:bg-[#efe7e3] transition-opacity flex items-center justify-center gap-2">
                         <span class="material-symbols-outlined text-sm">person</span>
                         Sair do Admin
                     </button>
@@ -637,8 +662,8 @@
         </div>
 
         <div class="flex-1 flex flex-col lg:ml-64">
-            <header class="hidden lg:flex fixed top-0 right-0 left-64 z-40 justify-between items-center px-12 w-full h-16 bg-[#fdf8f8]/80 backdrop-blur-xl border-b border-[#d4c4b7]/15">
-                <h2 id="admin-page-title" class="font-headline text-2xl font-extrabold text-primary">Clientes</h2>
+            <header class="admin-topbar hidden lg:flex fixed top-0 right-0 left-64 z-40 justify-between items-center px-10 h-16 backdrop-blur-xl border-b">
+                <h2 id="admin-page-title" class="font-headline text-lg font-extrabold text-[#513737]">Clientes</h2>
                 <div class="flex items-center gap-6">
                     <div class="flex items-center gap-3 pl-6 border-l border-[#d4c4b7]/30">
                         <div class="text-right">
@@ -650,35 +675,41 @@
                 </div>
             </header>
 
-            <main class="admin-shell-main flex-1 pt-20 lg:pt-24 pb-12 px-4 lg:px-12 w-full overflow-x-hidden">
+            <main class="admin-shell-main flex-1 pt-20 lg:pt-24 pb-12 px-4 lg:px-10 w-full overflow-x-hidden">
 
             <section id="adm-clients" class="adm-section">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="bg-gradient-to-br from-[#7f5353] to-[#d59f9f] rounded-2xl p-6 text-white">
+                <div class="admin-section-header">
+                    <div>
+                        <h2 class="admin-section-title font-headline">Clientes</h2>
+                        <p class="admin-section-subtitle">Acompanhe recorrência, histórico e status de relacionamento.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="admin-stat-card">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-white/70 text-sm">Total de Atendimentos</p>
-                                <p class="text-4xl font-extrabold mt-2" id="stat-total">0</p>
+                                <p class="text-stone-500 text-sm">Total de Atendimentos</p>
+                                <p class="text-3xl font-extrabold mt-2 text-[#513737]" id="stat-total">0</p>
                             </div>
-                            <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+                            <div class="w-11 h-11 rounded-xl bg-[#7f5353]/10 flex items-center justify-center text-[#7f5353]">
                                 <span class="material-symbols-outlined text-2xl">event_available</span>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-[#f7f3f2] rounded-2xl p-6">
+                    <div class="admin-stat-card">
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-stone-500 text-sm">Taxa de Retorno</p>
-                                <p class="text-4xl font-extrabold mt-2 text-[#7f5353]" id="stat-return">0%</p>
+                                <p class="text-3xl font-extrabold mt-2 text-[#513737]" id="stat-return">0%</p>
                             </div>
-                            <div class="w-14 h-14 rounded-full bg-[#d59f9f]/20 flex items-center justify-center text-[#7f5353]">
+                            <div class="w-11 h-11 rounded-xl bg-[#7f5353]/10 flex items-center justify-center text-[#7f5353]">
                                 <span class="material-symbols-outlined text-2xl">trending_up</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 overflow-hidden">
+                <div class="admin-panel overflow-hidden">
                     <div class="overflow-x-auto admin-desktop-table">
                         <table class="w-full">
                             <thead>
@@ -700,10 +731,10 @@
 
             <section id="adm-schedule" class="adm-section hidden">
                 <div class="mb-8">
-                    <div class="agenda-toolbar flex items-baseline justify-between mb-6">
+                    <div class="admin-section-header agenda-toolbar">
                         <div>
-                            <h2 id="agenda-view-title" class="font-headline text-3xl font-extrabold text-primary tracking-tight">Agenda Mensal</h2>
-                            <p class="font-body text-stone-500 mt-1" id="agenda-month-label">Abril, 2026</p>
+                            <h2 id="agenda-view-title" class="admin-section-title font-headline">Agenda Mensal</h2>
+                            <p class="admin-section-subtitle font-body" id="agenda-month-label">Abril, 2026</p>
                         </div>
                         <div class="agenda-toolbar-actions flex gap-3">
                             <div class="agenda-view-switch flex bg-surface-container-low p-1 rounded-xl">
@@ -723,7 +754,7 @@
                         </div>
                     </div>
 
-                    <div id="agenda-calendar-view" class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 overflow-hidden">
+                    <div id="agenda-calendar-view" class="admin-panel overflow-hidden">
                         <div id="agenda-calendar-header" class="grid grid-cols-7 bg-[#f7f3f2] py-4 border-b border-[#d4c4b7]/10">
                             <div class="text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase">Dom</div>
                             <div class="text-center text-[10px] font-bold tracking-widest text-stone-400 uppercase">Seg</div>
@@ -739,7 +770,7 @@
 
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <div class="xl:col-span-1 space-y-6">
-                        <div class="bg-white rounded-2xl border border-[#d4c4b7]/10 p-6 flex items-center justify-between">
+                        <div class="admin-stat-card flex items-center justify-between">
                             <div>
                                 <p class="text-[10px] font-bold tracking-[0.2em] uppercase text-stone-400">Total Hoje</p>
                                 <p class="text-3xl font-headline font-extrabold text-primary" id="stat-today-count">0</p>
@@ -749,7 +780,7 @@
                             </div>
                         </div>
 
-                        <div class="bg-primary p-6 rounded-2xl text-white relative overflow-hidden">
+                        <div class="bg-[#513737] p-6 rounded-2xl text-white relative overflow-hidden">
                             <div class="relative z-10">
                                 <h4 class="text-[10px] font-bold tracking-[0.2em] uppercase opacity-70 mb-4">Próximo agora</h4>
                                 <div class="flex items-center gap-3 mb-3">
@@ -768,7 +799,7 @@
                     </div>
 
                     <div class="xl:col-span-2 space-y-6">
-                        <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-6">
+                        <div class="admin-panel p-6">
                             <h3 class="font-headline font-bold text-lg text-[#1c1b1b] mb-4">Horários e funcionamento</h3>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
@@ -800,7 +831,7 @@
                             <button onclick="saveScheduleSettings()" class="mt-6 px-6 py-3 bg-[#7f5353] text-white rounded-xl font-bold text-sm hover:bg-[#6b4848] transition-colors">Salvar Configurações</button>
                         </div>
 
-                        <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-6">
+                        <div class="admin-panel p-6">
                             <h3 class="font-headline font-bold text-lg text-[#1c1b1b] mb-4">Datas bloqueadas</h3>
                             <div class="flex gap-3 mb-4">
                                 <input id="input-block-date" type="date" class="flex-1 bg-[#f7f3f2] border-none rounded-xl px-4 py-3 text-[#1c1b1b]"/>
@@ -809,7 +840,7 @@
                             <ul id="blocked-dates-list" class="space-y-2"></ul>
                         </div>
 
-                        <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-6">
+                        <div class="admin-panel p-6">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="font-headline font-bold text-lg text-[#1c1b1b]">Lista de Agendamentos</h3>
                             </div>
@@ -841,36 +872,41 @@
             </section>
 
             <section id="adm-portfolio" class="adm-section hidden">
-                <div class="flex justify-between items-end mb-8">
+                <div class="admin-section-header">
                     <div>
-                        <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Gestão de Serviços</h2>
-                        <p class="text-stone-500 mt-2">Personalize seu catálogo de experiências</p>
+                        <h2 class="admin-section-title font-headline">Serviços</h2>
+                        <p class="admin-section-subtitle">Edite preços, descrições e imagens exibidas para clientes.</p>
                     </div>
-                    <button onclick="openAddServiceModal()" class="px-6 py-3 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md">
+                    <button onclick="openAddServiceModal()" class="admin-primary-action">
                         <span class="material-symbols-outlined">add</span>
-                        ADICIONAR SERVIÇO
+                        Adicionar serviço
                     </button>
                 </div>
                 <div id="services-grid-admin" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </section>
 
             <section id="adm-gallery" class="adm-section hidden">
-                <div class="flex justify-between items-end mb-8">
+                <div class="admin-section-header">
                     <div>
-                        <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight">Catálogo de Unhas</h2>
-                        <p class="text-stone-500 mt-2">Adicione fotos do seu portfólio para inspirar as clientes</p>
+                        <h2 class="admin-section-title font-headline">Catálogo</h2>
+                        <p class="admin-section-subtitle">Organize referências visuais para inspirar novas reservas.</p>
                     </div>
-                    <button onclick="openAddGalleryModal()" class="px-6 py-3 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-opacity-90 transition-all shadow-md active:scale-95">
+                    <button onclick="openAddGalleryModal()" class="admin-primary-action active:scale-95">
                         <span class="material-symbols-outlined">add_a_photo</span>
-                        ADICIONAR FOTO
+                        Adicionar foto
                     </button>
                 </div>
                 <div id="admin-gallery-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
             </section>
 
             <section id="adm-settings" class="adm-section hidden">
-                <h2 class="font-headline text-3xl font-extrabold text-primary tracking-tight mb-8">Configurações</h2>
-                <div class="bg-white rounded-2xl shadow-sm border border-[#d4c4b7]/10 p-8">
+                <div class="admin-section-header">
+                    <div>
+                        <h2 class="admin-section-title font-headline">Configurações</h2>
+                        <p class="admin-section-subtitle">Ajustes de identidade visual usados no app da cliente.</p>
+                    </div>
+                </div>
+                <div class="admin-panel p-8">
                     <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mb-6">Foto de Perfil</h3>
                     <div class="flex items-center gap-6">
                         <img id="admin-settings-photo" src="https://via.placeholder.com/150" alt="Foto" class="w-24 h-24 rounded-full object-cover">

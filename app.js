@@ -1596,13 +1596,13 @@ function showAdminSection(section) {
     if (mobileSubtitleEl) mobileSubtitleEl.textContent = section === 'schedule' ? 'VisÃ£o rÃ¡pida da agenda' : 'Painel administrativo';
 
     document.querySelectorAll('.adm-nav-link').forEach(link => {
-        link.classList.remove('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
+        link.classList.remove('text-[#7f5353]', 'font-extrabold', 'bg-[#f7f3f2]', 'shadow-sm');
         link.classList.add('text-stone-500');
     });
 
     document.querySelectorAll(`.adm-nav-link[data-admin-section="${section}"]`).forEach(currentLink => {
         currentLink.classList.remove('text-stone-500');
-        currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'border-r-4', 'border-[#7f5353]', 'bg-[#f7f3f2]');
+        currentLink.classList.add('text-[#7f5353]', 'font-extrabold', 'bg-[#f7f3f2]', 'shadow-sm');
     });
 
     document.querySelectorAll('.adm-mobile-chip').forEach(chip => {

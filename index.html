@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
     <title>Espaço das Patroas</title>
 
     <!-- PWA / Ícone na Área de Trabalho com caminhos absolutos para Vercel -->
@@ -51,7 +51,15 @@
     </script>
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fdf8f8; color: #1c1b1b; }
+        :root {
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+        }
+        html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fdf8f8; color: #1c1b1b; overscroll-behavior-y: none; }
+        button, a, input, select, textarea { touch-action: manipulation; }
         h1, h2, h3 { font-family: 'Manrope', sans-serif; }
         .page { display: none !important; }
         .page.active { display: flex !important; flex-direction: column; }
@@ -73,8 +81,28 @@
         .admin-primary-action:hover { background: #6b4848; }
         .adm-nav-link { border-radius: 8px !important; font-weight: 700; }
         .adm-nav-link .material-symbols-outlined { font-size: 20px; }
+        .modal { position: fixed; inset: 0; z-index: 100; align-items: center; justify-content: center; padding: max(1rem, var(--safe-top)) max(1rem, var(--safe-right)) max(1rem, var(--safe-bottom)) max(1rem, var(--safe-left)); background: rgba(0,0,0,0.42); backdrop-filter: blur(8px); }
+        .modal:not(.hidden) { display: flex; }
+        .modal > div { max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2rem); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .ios-sticky-header { padding-top: var(--safe-top); height: calc(4rem + var(--safe-top)); }
+        .ios-bottom-nav { padding-bottom: max(0.75rem, var(--safe-bottom)); }
+        .tap-target { min-height: 44px; min-width: 44px; }
+        .mobile-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
         #admin-view table th { color: #7b6b61; background: #f5efeb; }
         #admin-view table tbody tr { border-bottom: 1px solid rgba(127, 83, 83, 0.08); }
+
+        @media (max-width: 420px) {
+            body { font-size: 15px; }
+            input, select, textarea { font-size: 16px !important; }
+            #booking-stepper, #payment-stepper { gap: 0.35rem !important; }
+            #booking-stepper > div, #payment-stepper > div { padding: 0.45rem 0.25rem !important; }
+            #booking-stepper p:last-child, #payment-stepper p:last-child { font-size: 0.62rem !important; line-height: 0.8rem !important; }
+            #booking-summary-total { font-size: 1.05rem !important; white-space: nowrap; }
+            #times-container { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+            #payment-methods-section label { padding: 1rem !important; }
+            #payment-methods-section label .w-10 { width: 2.25rem !important; height: 2.25rem !important; }
+            .admin-section-title { font-size: 1.4rem; line-height: 1.75rem; }
+        }
 
         @media (max-width: 768px) {
             #admin-view:not(.hidden) { display: flex !important; flex-direction: column !important; }
@@ -98,6 +126,13 @@
             #times-container { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
             .admin-section-header { align-items: stretch; flex-direction: column; }
             .admin-primary-action { width: 100%; }
+            .admin-topbar { padding-top: var(--safe-top); height: calc(4rem + var(--safe-top)); }
+            .admin-mobile-subnav { top: calc(4rem + var(--safe-top)) !important; }
+            .admin-shell-main { padding-bottom: calc(2rem + var(--safe-bottom)) !important; }
+            #client-view header.fixed { padding-top: var(--safe-top); height: calc(4rem + var(--safe-top)); }
+            #client-view main { padding-left: max(1rem, var(--safe-left)); padding-right: max(1rem, var(--safe-right)); }
+            #page-home main, #page-gallery main, #page-my-appointments main, #page-booking main, #page-payment main { padding-top: calc(5rem + var(--safe-top)) !important; }
+            #client-view nav.fixed.bottom-0 { padding-bottom: max(0.25rem, var(--safe-bottom)); }
         }
     </style>
 </head>
@@ -537,6 +572,10 @@
                 </div>
             </div>
 
+            <button id="notify-admin-whatsapp-button" onclick="sendLastBookingToAdminWhatsApp()" class="w-full mt-6 py-4 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
+                Notificar Admin no WhatsApp
+            </button>
             <button onclick="goToHome()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
                 Voltar para Home
             </button>

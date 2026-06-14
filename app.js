@@ -639,8 +639,10 @@ let adminNotificationChannel = null;
 let adminNotificationBaselineReady = false;
 let knownAdminAppointmentIds = new Set();
 let currentAdminSection = 'clients';
+let lastConfirmedBookingForWhatsApp = null;
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
+const ADMIN_WHATSAPP_NUMBER = '5527997559191';
 const ADMIN_NOTIFICATION_POLL_MS = 20000;
 
 function getBookingFlow() {
@@ -863,6 +865,51 @@ function buildAdminAppointmentNotificationMessage(appointment) {
     const dateLabel = formatDate(appointment.appointment_date);
     const timeLabel = formatAppointmentTime(appointment.appointment_time);
     return `Novo agendamento: ${serviceNames} em ${dateLabel} \u00e0s ${timeLabel}.`;
+}
+
+function buildAdminWhatsAppBookingMessage(booking) {
+    const user = booking?.user || db.currentUser || {};
+    const services = Array.isArray(booking?.services)
+        ? booking.services.join(', ')
+        : formatServiceNames(booking?.services || booking?.services_names || '');
+    const price = booking?.price !== undefined ? formatCurrency(booking.price) : '-';
+    const date = booking?.date ? formatDate(booking.date) : formatDate(booking?.appointment_date);
+    const time = booking?.time || formatAppointmentTime(booking?.appointment_time || '');
+    const payment = formatPaymentMethod(booking?.paymentMethod || booking?.payment_method || '');
+
+    return [
+        'Novo agendamento pelo app Espaco das Patroas',
+        '',
+        `Cliente: ${user.name || 'Cliente sem nome'}`,
+        `Telefone: ${user.phone || 'Nao informado'}`,
+        `Servicos: ${services || '-'}`,
+        `Valor: ${price}`,
+        `Data: ${date || '-'}`,
+        `Horario: ${time || '-'}`,
+        `Forma de pagamento: ${payment || '-'}`
+    ].join('\n');
+}
+
+function getAdminWhatsAppUrl(booking) {
+    return `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(buildAdminWhatsAppBookingMessage(booking))}`;
+}
+
+function sendBookingToAdminWhatsApp(booking, options = {}) {
+    if (!booking) return false;
+    const popup = window.open(getAdminWhatsAppUrl(booking), '_blank', 'noopener,noreferrer');
+    const opened = Boolean(popup);
+    if (!opened && !options.silent) {
+        showToast('Toque em "Notificar Admin no WhatsApp" para enviar a mensagem.');
+    }
+    return opened;
+}
+
+function sendLastBookingToAdminWhatsApp() {
+    if (!lastConfirmedBookingForWhatsApp) {
+        showToast('Nenhum agendamento recente para notificar.');
+        return;
+    }
+    sendBookingToAdminWhatsApp(lastConfirmedBookingForWhatsApp);
 }
 
 function notifyAdminInApp(appointment) {
@@ -1368,6 +1415,23 @@ async function confirmBooking() {
 
     if (result?.ok && result.user) {
         db.currentUser = result.user;
+    }
+
+    if (result?.ok && result.appointment) {
+        lastConfirmedBookingForWhatsApp = {
+            user: result.user || db.currentUser,
+            services: result.appointment.services_names,
+            price: result.appointment.price,
+            date: result.appointment.appointment_date,
+            time: result.appointment.appointment_time,
+            paymentMethod: result.appointment.payment_method
+        };
+        setTimeout(() => {
+            const opened = sendBookingToAdminWhatsApp(lastConfirmedBookingForWhatsApp, { silent: true });
+            if (!opened) {
+                showToast('Agendamento confirmado. Envie a notificacao pelo botao do WhatsApp.');
+            }
+        }, 350);
     }
 }
 

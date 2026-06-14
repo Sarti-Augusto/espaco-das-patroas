@@ -14,7 +14,6 @@
             getBookedSlots,
             populateTimes,
             createAppointment,
-            updateUser,
             addToGoogleCalendar,
             resetBookingFlowState,
             renderSuccess,
@@ -73,11 +72,6 @@
             addToGoogleCalendar?.(newAppointment);
 
             const nextAppointmentsCount = (currentUser.appointments_count || 0) + 1;
-            await updateUser(currentUser.id, {
-                appointments_count: nextAppointmentsCount,
-                type: 'Recorrente'
-            });
-
             const nextUser = {
                 ...currentUser,
                 appointments_count: nextAppointmentsCount,

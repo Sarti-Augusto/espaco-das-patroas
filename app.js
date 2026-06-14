@@ -499,6 +499,14 @@ async function handleAdminEmailLogin(button = null) {
 }
 
 async function supabaseUpdateUser(userId, updates) {
+    const isOwnProfile = db.currentUser?.id === userId;
+    const ownProfileFields = ['name', 'phone', 'profile_image_url'];
+    const updateKeys = Object.keys(updates || {});
+
+    if (!db.isAdmin && (!isOwnProfile || updateKeys.some(key => !ownProfileFields.includes(key)))) {
+        throw new Error('Voce nao tem permissao para atualizar estes dados.');
+    }
+
     const data = await getSupabaseService().updateUser(userId, updates);
     
     const index = db.users.findIndex(u => u.id === userId);
@@ -3164,7 +3172,11 @@ function showToast(message) {
     toast.className = 'toast fixed left-4 right-4 bottom-24 z-[9999] flex justify-center transition-all duration-300 opacity-0 translate-y-3 pointer-events-none';
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');
-    toast.innerHTML = `<div class="toast-message bg-[#1c1b1b] text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium">${message}</div>`;
+    toast.setAttribute('aria-atomic', 'true');
+    const messageEl = document.createElement('div');
+    messageEl.className = 'toast-message bg-[#1c1b1b] text-white px-6 py-3 rounded-xl shadow-lg text-sm font-medium';
+    messageEl.textContent = message;
+    toast.appendChild(messageEl);
     document.body.appendChild(toast);
 
     setTimeout(() => toast.classList.remove('opacity-0', 'translate-y-3'), 10);

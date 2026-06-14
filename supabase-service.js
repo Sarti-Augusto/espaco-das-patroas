@@ -42,7 +42,7 @@
             const client = getClient();
             const [servicesData, settingsData, scheduleData, galleryData] = await Promise.all([
                 client.from('services').select('*'),
-                client.from('settings').select('*'),
+                client.from('settings').select('setting_key, setting_value').eq('setting_key', 'profileImg'),
                 client.from('schedule_config').select('*').limit(1),
                 client.from('gallery').select('*').order('created_at', { ascending: false })
             ]);

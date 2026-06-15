@@ -188,11 +188,27 @@ function isAdminProfile(profile) {
     return role === 'admin' || email === ADMIN_EMAIL.toLowerCase();
 }
 
+function isAdminEntryPage() {
+    const pathname = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    return pathname === '/admin' || pathname === '/admin.html';
+}
+
+function getDefaultLoginRole() {
+    return isAdminEntryPage() ? 'admin' : 'client';
+}
+
+function getPendingLoginRole() {
+    const storedRole = localStorage.getItem('espacoPatroas_pendingLoginRole');
+    if (isAdminEntryPage() && storedRole !== 'admin') return 'admin';
+    return storedRole || getDefaultLoginRole();
+}
+
 function getRedirectUrl(role) {
     localStorage.setItem('espacoPatroas_pendingLoginRole', role);
     if (!window.location.protocol.startsWith('http')) return undefined;
 
-    const url = new URL('/', getAuthRedirectBaseUrl());
+    const redirectPath = role === 'admin' ? '/admin.html' : '/';
+    const url = new URL(redirectPath, getAuthRedirectBaseUrl());
     url.searchParams.set('loginRole', role);
     if (shouldUseLocalAuthRedirect()) url.searchParams.set('devAuth', '1');
     return url.toString();
@@ -259,7 +275,7 @@ function hasAuthRedirectPayload() {
 function showAuthReturnLoading() {
     if (!hasAuthRedirectPayload()) return false;
 
-    const role = getLoginRoleFromUrl() || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
+    const role = getLoginRoleFromUrl() || getPendingLoginRole();
     hideAllPages();
     const loadingPage = document.getElementById(role === 'admin' ? 'page-admin-login' : 'page-login');
     if (loadingPage) loadingPage.classList.add('active');
@@ -292,7 +308,7 @@ function renderAuthDebugPanel(message = '') {
         message,
         `URL: ${safeUrl.toString()}`,
         `Hash: ${safeHash}`,
-        `Role: ${new URLSearchParams(window.location.search).get('loginRole') || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client'}`
+        `Role: ${new URLSearchParams(window.location.search).get('loginRole') || getPendingLoginRole()}`
     ].filter(Boolean).join('\n');
 
     ['auth-debug-panel', 'admin-auth-debug-panel'].forEach(id => {
@@ -579,7 +595,7 @@ function checkAutoLogin() {
     if (!isDbLoaded) return false;
 
     const roleFromUrl = new URLSearchParams(window.location.search).get('loginRole');
-    const expectedRole = roleFromUrl || localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
+    const expectedRole = roleFromUrl || getPendingLoginRole();
 
     if (!db.currentUser) return false;
 
@@ -3134,7 +3150,11 @@ window.executarLogout = async function() {
     if (adminView) adminView.classList.add('hidden');
 
     if (typeof showLoginStep1 === 'function') showLoginStep1();
-    if (typeof showPage === 'function') showPage('page-login');
+    if (isAdminEntryPage()) {
+        showAdminLogin();
+    } else if (typeof showPage === 'function') {
+        showPage('page-login');
+    }
     updateManuProfilePhoto();
     if (typeof showToast === 'function') showToast('VocÃª saiu da conta com sucesso.');
 };
@@ -3149,7 +3169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const didRoute = await processInitialAuth();
     if (!didRoute) {
-        const loginPage = document.getElementById('page-login');
+        const loginPage = document.getElementById(isAdminEntryPage() ? 'page-admin-login' : 'page-login');
         if (loginPage) loginPage.classList.add('active');
     }
 });

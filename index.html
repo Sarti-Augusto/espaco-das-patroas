@@ -429,21 +429,21 @@
                 </div>
 
                 <section id="payment-methods-section" class="space-y-4">
-                    <div id="payment-50-container" class="hidden">
-                        <label for="payment-50" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('50')">
-                            <input id="payment-50" class="sr-only" name="payment" type="radio" value="50" onchange="selectPaymentMethod('50')"/>
+                    <div id="payment-pix-container">
+                        <label for="payment-pix" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('pix')">
+                            <input id="payment-pix" class="sr-only" name="payment" type="radio" value="pix" onchange="selectPaymentMethod('pix')"/>
                             <div class="flex items-center justify-between w-full">
                                 <div class="flex items-center gap-4">
-                                    <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">percent</span></div>
-                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">50% (Sinal)</h4><p class="text-xs text-[#50453b]">Sinal de reserva - clique para ver como pagar</p></div>
+                                    <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">qr_code_2</span></div>
+                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">PIX</h4><p class="text-xs text-[#50453b]">Use a chave PIX da loja</p></div>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
                                     <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
                                 </div>
                             </div>
                         </label>
-                        <div id="payment-50-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
-                            <p class="text-sm text-[#50453b]">Para confirmar o sinal de 50%, escolha pagar por PIX ou solicite o link de cart&atilde;o.</p>
+                        <div id="payment-pix-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
+                            <p class="text-sm text-[#50453b]">A forma de pagamento PIX sera enviada para a administradora junto com o agendamento.</p>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-[#50453b]">Chave PIX (Telefone):</p>
                                 <strong class="text-sm text-[#7f5353]">27 99755-5191</strong>
@@ -452,86 +452,22 @@
                                 <span class="material-symbols-outlined">content_copy</span>
                                 Copiar Chave PIX
                             </button>
-                            <button onclick="requestCardPayment()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
-                                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
-                                Solicitar Link de Cart&atilde;o (50%)
-                            </button>
                         </div>
                     </div>
 
-                    <div id="payment-full-container">
-                    <label for="payment-full" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('full')">
-                        <input id="payment-full" class="sr-only" name="payment" type="radio" value="full" onchange="selectPaymentMethod('full')"/>
-                        <div class="flex items-center justify-between w-full">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">account_balance_wallet</span></div>
-                                <div><h4 class="font-headline font-bold text-[#1c1b1b]">Antecipado</h4><p class="text-xs text-[#50453b]">PIX ou cartão - clique para ver opções</p></div>
-                            </div>
-                            <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
-                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
-                            </div>
-                        </div>
-                    </label>
-                    <div id="payment-full-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
-                        <div class="flex items-center justify-between">
-                            <p class="text-xs text-[#50453b]">Chave PIX (Telefone):</p>
-                            <strong class="text-sm text-[#7f5353]">27 99755-5191</strong>
-                        </div>
-                        <button onclick="copyPixKey()" class="w-full py-3 rounded-xl bg-[#7f5353] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
-                            <span class="material-symbols-outlined">content_copy</span>
-                            Copiar Chave PIX
-                        </button>
-                        <div class="border-t border-[#d4c4b7]/30 pt-3">
-                            <p class="text-xs text-[#50453b] mb-2">Ou prefira pagar com cartão:</p>
-                            <button onclick="requestCardPayment()" class="w-full py-3 rounded-xl bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
-                                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat</span>
-                                Solicitar Link de Cartão
-                            </button>
-                        </div>
-                    </div>
-                    </div>
-
-                    <div id="payment-store-container">
-                    <label for="payment-store" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('store')">
-                        <input id="payment-store" class="sr-only" name="payment" type="radio" value="store" onchange="selectPaymentMethod('store')"/>
+                    <div id="payment-cash-container">
+                    <label for="payment-cash" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('cash')">
+                        <input id="payment-cash" class="sr-only" name="payment" type="radio" value="cash" onchange="selectPaymentMethod('cash')"/>
                         <div class="flex items-center justify-between w-full">
                             <div class="flex items-center gap-4">
                                 <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">payments</span></div>
-                                <div><h4 class="font-headline font-bold text-[#1c1b1b]">Após o atendimento</h4><p class="text-xs text-[#50453b]">Pague diretamente no balcão</p></div>
+                                <div><h4 class="font-headline font-bold text-[#1c1b1b]">Dinheiro</h4><p class="text-xs text-[#50453b]">Pagamento presencial no atendimento</p></div>
                             </div>
                             <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
                                 <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
                             </div>
                         </div>
                     </label>
-                    </div>
-
-                    <div id="payment-scheduled-container">
-                    <label for="payment-scheduled" class="group flex flex-col p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('scheduled')">
-                        <input id="payment-scheduled" class="sr-only peer" name="payment" type="radio" value="scheduled" onchange="selectPaymentMethod('scheduled')"/>
-                        <div class="flex items-center justify-between w-full">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]">
-                                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">schedule</span>
-                                </div>
-                                <div>
-                                    <h4 class="font-headline font-bold text-[#1c1b1b]">Programado</h4>
-                                    <p class="text-xs text-[#50453b]">Agende o débito em até 20 dias</p>
-                                </div>
-                            </div>
-                            <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center peer-checked:border-[#7f5353]">
-                                <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 peer-checked:scale-100 transition-transform"></div>
-                            </div>
-                        </div>
-                    </label>
-                    <div id="scheduled-date-container" class="hidden mt-4 bg-white rounded-xl p-4 border-l-4 border-[#7f5353]">
-                        <label class="text-[10px] uppercase tracking-wider text-[#7f5353] font-bold mb-2 block" for="input-pay-date">Data do Débito</label>
-                        <input id="input-pay-date" type="date" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] text-[#1c1b1b] font-medium py-2" />
-                        <p class="text-[11px] italic text-[#82756a] mt-2 flex gap-1">
-                            <span class="material-symbols-outlined text-[14px]">info</span>
-                            Selecione uma data para o pagamento (até 20 dias).
-                        </p>
-                    </div>
                     </div>
                 </section>
 

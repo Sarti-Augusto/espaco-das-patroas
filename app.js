@@ -878,14 +878,14 @@ function buildAdminWhatsAppBookingMessage(booking) {
     const payment = formatPaymentMethod(booking?.paymentMethod || booking?.payment_method || '');
 
     return [
-        'Novo agendamento pelo app Espaco das Patroas',
+        'Novo agendamento:',
         '',
         `Cliente: ${user.name || 'Cliente sem nome'}`,
-        `Telefone: ${user.phone || 'Nao informado'}`,
-        `Servicos: ${services || '-'}`,
+        `WhatsApp: ${user.phone || 'Nao informado'}`,
+        `Serviços: ${services || '-'}`,
         `Valor: ${price}`,
         `Data: ${date || '-'}`,
-        `Horario: ${time || '-'}`,
+        `Horário: ${time || '-'}`,
         `Forma de pagamento: ${payment || '-'}`
     ].join('\n');
 }
@@ -1392,8 +1392,6 @@ async function confirmBooking() {
         selectedDate,
         selectedTime,
         cartItems: getCartItems(),
-        recurringClient: isRecurringClient(),
-        paymentDateValue: document.getElementById('input-pay-date')?.value || '',
         confirmButton,
         setInlineStatus,
         setButtonLoading,
@@ -1401,7 +1399,6 @@ async function confirmBooking() {
         populateTimes,
         createAppointment: supabaseCreateAppointment,
         updateUser: supabaseUpdateUser,
-        addToGoogleCalendar,
         resetBookingFlowState,
         renderSuccess,
         updateBookingProgress,
@@ -1458,16 +1455,11 @@ function updateBookingSummary() {
 }
 
 function updatePaymentSummaryNote() {
-    getBookingFlow().updatePaymentSummaryNote({
-        recurringClient: isRecurringClient()
-    });
+    getBookingFlow().updatePaymentSummaryNote();
 }
 
 function updatePaymentOptionsForCurrentUser() {
-    getBookingFlow().updatePaymentOptions({
-        recurringClient: isRecurringClient(),
-        onForceMethod: selectPaymentMethod
-    });
+    getBookingFlow().updatePaymentOptions();
 }
 
 function goToPayment() {
@@ -1502,23 +1494,6 @@ function selectPaymentMethod(method) {
     setInlineStatus('payment-inline-status', '');
     getBookingFlow().applyPaymentMethodUi(method);
     updatePaymentSummaryNote();
-}
-
-function requestPaymentLink() {
-    return getBookingPayment().requestPaymentLink({
-        totalPrice: getCartTotal(),
-        serviceNames: getCartServiceNames(),
-        formatCurrency
-    });
-}
-
-function requestCardPayment() {
-    return getBookingPayment().requestCardPayment({
-        selectedPaymentMethod,
-        totalPrice: getCartTotal(),
-        serviceNames: getCartServiceNames(),
-        formatCurrency
-    });
 }
 
 async function copyPixKey() {
@@ -2065,17 +2040,12 @@ async function renderAdminAppointments() {
 
 async function updateAppointmentStatus(appointmentId, newStatus) {
     try {
-        const appointment = db.appointmentsCache.find(a => a.id === appointmentId);
         await getSupabaseService().updateAppointmentStatus(appointmentId, newStatus);
 
         const idx = db.appointmentsCache.findIndex(a => a.id === appointmentId);
         if (idx !== -1) db.appointmentsCache[idx].status = newStatus;
 
-        if (newStatus === 'Cancelado' && appointment) {
-            removeFromGoogleCalendar(appointment);
-        } else {
-            showToast('Status atualizado!');
-        }
+        showToast('Status atualizado!');
     } catch (error) {
         showToast('Erro ao atualizar.');
     }
@@ -3200,32 +3170,6 @@ function normalizeImageUrl(url) {
     if (value.startsWith('data:image/')) return value;
     if (value.startsWith('https://') || value.startsWith('http://')) return value.replace(/["'()\\]/g, '');
     return "";
-}
-
-// ==========================================
-// GOOGLE CALENDAR INTEGRATION
-// ==========================================
-function generateGoogleCalendarUrl(appointment) {
-    const serviceNames = formatServiceNames(appointment.services_names);
-    const title = encodeURIComponent(`Espa\u00e7o das Patroas - ${serviceNames}`);
-    const dateStr = appointment.appointment_date.replace(/-/g, "");
-    const startTime = appointment.appointment_time.replace(":", "") + "00";
-    const endHour = parseInt(appointment.appointment_time.split(":")[0]) + 3;
-    const endTime = `${endHour.toString().padStart(2, "0")}${appointment.appointment_time.split(":")[1]}00`;
-    const start = `${dateStr}T${startTime}`;
-    const end = `${dateStr}T${endTime}`;
-    const details = encodeURIComponent(`Cliente: ${appointment.client_name || "Cliente"}\nServi\u00e7o: ${serviceNames}\nValor: R$ ${appointment.price}\nPagamento: ${appointment.payment_status || "Pendente"}`);
-    const location = encodeURIComponent("Espa\u00e7o das Patroas");
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
-}
-
-function addToGoogleCalendar(appointment) {
-    const url = generateGoogleCalendarUrl(appointment);
-    window.open(url, '_blank');
-}
-
-function removeFromGoogleCalendar(appointment) {
-    showToast('Agendamento cancelado. Remova manualmente do Google Calendar se foi adicionado.');
 }
 
 function showToast(message) {

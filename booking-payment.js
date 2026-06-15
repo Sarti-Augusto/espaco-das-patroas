@@ -1,65 +1,4 @@
 (function attachBookingPayment() {
-    function buildPaymentLinkMessage(options) {
-        const {
-            mode = 'signal',
-            totalPrice = 0,
-            paymentAmount = 0,
-            serviceNames = '',
-            formatCurrency
-        } = options || {};
-
-        const safeFormatCurrency = typeof formatCurrency === 'function'
-            ? formatCurrency
-            : value => String(value ?? 0);
-
-        if (mode === 'signal') {
-            return `Ol%C3%A1! Vim pelo Espa%C3%A7o das Patroas.%0A%0AGostaria de solicitar o link de pagamento do sinal (50%).%0A%0AServi%C3%A7o: ${serviceNames}%0AValor total: ${safeFormatCurrency(totalPrice)}%0ASinal (50%): ${safeFormatCurrency(paymentAmount)}`;
-        }
-
-        return `Ol%C3%A1! Vim pelo Espa%C3%A7o das Patroas.%0A%0AGostaria de solicitar o link de pagamento ${mode}.%0A%0AServi%C3%A7o: ${serviceNames}%0AValor a pagar: ${safeFormatCurrency(paymentAmount)}`;
-    }
-
-    function requestPaymentLink(options) {
-        const {
-            totalPrice = 0,
-            serviceNames = '',
-            formatCurrency
-        } = options || {};
-
-        const partialAmount = Number(totalPrice) / 2;
-        const message = buildPaymentLinkMessage({
-            mode: 'signal',
-            totalPrice,
-            paymentAmount: partialAmount,
-            serviceNames,
-            formatCurrency
-        });
-
-        window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
-    }
-
-    function requestCardPayment(options) {
-        const {
-            selectedPaymentMethod = 'full',
-            totalPrice = 0,
-            serviceNames = '',
-            formatCurrency
-        } = options || {};
-
-        const partialAmount = Number(totalPrice) / 2;
-        const paymentAmount = selectedPaymentMethod === '50' ? partialAmount : totalPrice;
-        const paymentLabel = selectedPaymentMethod === '50' ? 'do sinal (50%)' : 'via cart%C3%A3o';
-        const message = buildPaymentLinkMessage({
-            mode: paymentLabel,
-            totalPrice,
-            paymentAmount,
-            serviceNames,
-            formatCurrency
-        });
-
-        window.open(`https://wa.me/5527997559191?text=${message}`, '_blank');
-    }
-
     async function copyTextToClipboard(text) {
         if (navigator.clipboard?.writeText && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
@@ -102,6 +41,8 @@
 
     function formatPaymentMethod(method) {
         const map = {
+            pix: 'PIX',
+            cash: 'Dinheiro',
             '50': '50% (Sinal)',
             'full': 'Antecipado',
             'store': 'Na Loja',
@@ -137,8 +78,6 @@
     }
 
     window.bookingPayment = {
-        requestPaymentLink,
-        requestCardPayment,
         copyTextToClipboard,
         copyPixKey,
         formatPaymentMethod,

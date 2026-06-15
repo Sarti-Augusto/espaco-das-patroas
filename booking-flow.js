@@ -57,8 +57,7 @@
         if (totalElement) totalElement.textContent = totalLabel;
     }
 
-    function updatePaymentSummaryNote(options) {
-        const { recurringClient = false } = options || {};
+    function updatePaymentSummaryNote() {
         const noteElement = document.getElementById('payment-summary-note');
         if (!noteElement) return;
 
@@ -67,16 +66,9 @@
             return;
         }
 
-        if (!recurringClient) {
-            noteElement.textContent = 'Como este e o primeiro atendimento, liberamos apenas o sinal de 50% via PIX ou cartao.';
-            return;
-        }
-
         const notes = {
-            '50': 'Seu horario sera reservado apos a confirmacao do sinal de 50%.',
-            'full': 'Pagamento antecipado disponivel por PIX ou link de cartao.',
-            'store': 'Voce podera pagar presencialmente no atendimento.',
-            'scheduled': 'Programe o pagamento em ate 20 dias apos a reserva.'
+            pix: 'Pagamento via PIX. A administradora recebera essa informacao no WhatsApp.',
+            cash: 'Pagamento em dinheiro no atendimento. A administradora recebera essa informacao no WhatsApp.'
         };
 
         noteElement.textContent = notes[state.selectedPaymentMethod] || 'Escolha a forma de pagamento para concluir o agendamento.';
@@ -106,29 +98,18 @@
         const {
             serviceNames = '',
             dateLabel = '',
-            totalLabel = 'R$ 0,00',
-            minDate = '',
-            maxDate = ''
+            totalLabel = 'R$ 0,00'
         } = options || {};
 
         const serviceNameEl = document.getElementById('pay-service-name');
         const serviceDateEl = document.getElementById('pay-service-date');
         const servicePriceEl = document.getElementById('pay-service-price');
-        const payInput = document.getElementById('input-pay-date');
 
         if (serviceNameEl) serviceNameEl.textContent = serviceNames;
         if (serviceDateEl) serviceDateEl.textContent = dateLabel;
         if (servicePriceEl) servicePriceEl.textContent = totalLabel;
 
-        document.getElementById('payment-50-info')?.classList.add('hidden');
-        document.getElementById('payment-full-info')?.classList.add('hidden');
-        document.getElementById('scheduled-date-container')?.classList.add('hidden');
-
-        if (payInput) {
-            payInput.min = minDate;
-            payInput.max = maxDate;
-            payInput.value = '';
-        }
+        document.getElementById('payment-pix-info')?.classList.add('hidden');
 
         state.selectedPaymentMethod = null;
         document.querySelectorAll('input[name="payment"]').forEach(input => {
@@ -136,33 +117,19 @@
         });
     }
 
-    function updatePaymentOptions(options) {
-        const { recurringClient = false, onForceMethod } = options || {};
-
-        document.getElementById('payment-50-container')?.classList.remove('hidden');
-        document.getElementById('payment-full-container')?.classList.toggle('hidden', !recurringClient);
-        document.getElementById('payment-store-container')?.classList.toggle('hidden', !recurringClient);
-        document.getElementById('payment-scheduled-container')?.classList.toggle('hidden', !recurringClient);
-
-        if (!recurringClient && typeof onForceMethod === 'function') {
-            onForceMethod('50');
-        }
+    function updatePaymentOptions() {
+        document.getElementById('payment-pix-container')?.classList.remove('hidden');
+        document.getElementById('payment-cash-container')?.classList.remove('hidden');
     }
 
     function applyPaymentMethodUi(method) {
-        document.getElementById('payment-50-info')?.classList.add('hidden');
-        document.getElementById('payment-full-info')?.classList.add('hidden');
-        document.getElementById('scheduled-date-container')?.classList.add('hidden');
+        document.getElementById('payment-pix-info')?.classList.add('hidden');
 
         const radio = document.getElementById(`payment-${method}`);
         if (radio) radio.checked = true;
 
-        if (method === '50') {
-            document.getElementById('payment-50-info')?.classList.remove('hidden');
-        } else if (method === 'full') {
-            document.getElementById('payment-full-info')?.classList.remove('hidden');
-        } else if (method === 'scheduled') {
-            document.getElementById('scheduled-date-container')?.classList.remove('hidden');
+        if (method === 'pix') {
+            document.getElementById('payment-pix-info')?.classList.remove('hidden');
         }
     }
 

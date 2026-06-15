@@ -6,15 +6,12 @@
             selectedDate,
             selectedTime,
             cartItems = [],
-            recurringClient = false,
-            paymentDateValue = '',
             confirmButton = null,
             setInlineStatus,
             setButtonLoading,
             getBookedSlots,
             populateTimes,
             createAppointment,
-            addToGoogleCalendar,
             resetBookingFlowState,
             renderSuccess,
             updateBookingProgress,
@@ -31,18 +28,9 @@
             return { ok: false, reason: 'missing-user' };
         }
 
-        if (!recurringClient && selectedPaymentMethod !== '50') {
-            setInlineStatus?.('payment-inline-status', 'Para novas clientes, o agendamento exige sinal de 50%.', 'warning');
-            return { ok: false, reason: 'new-client-must-pay-signal' };
-        }
-
-        let paymentDate = null;
-        if (selectedPaymentMethod === 'scheduled') {
-            paymentDate = paymentDateValue || '';
-            if (!paymentDate) {
-                setInlineStatus?.('payment-inline-status', 'Selecione a data para o pagamento programado.', 'error');
-                return { ok: false, reason: 'missing-scheduled-date' };
-            }
+        if (!['pix', 'cash'].includes(selectedPaymentMethod)) {
+            setInlineStatus?.('payment-inline-status', 'Selecione PIX ou dinheiro para continuar.', 'error');
+            return { ok: false, reason: 'invalid-payment-method' };
         }
 
         const totalPrice = cartItems.reduce((acc, item) => acc + (Number(item?.price) || 0), 0);
@@ -66,10 +54,8 @@
                 date: selectedDate,
                 time: selectedTime,
                 paymentMethod: selectedPaymentMethod,
-                paymentDate
+                paymentDate: null
             });
-
-            addToGoogleCalendar?.(newAppointment);
 
             const nextAppointmentsCount = (currentUser.appointments_count || 0) + 1;
             const nextUser = {

@@ -25,6 +25,8 @@ let db = {
     isAdmin: false
 };
 let isDbLoaded = false;
+let isPublicDataLoaded = false;
+let publicDataPromise = null;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 let authListenerAttached = false;
 let authProfilePromise = null;
@@ -51,9 +53,9 @@ async function initSupabase() {
             }
         });
         attachAuthListener();
-        await loadPublicData();
         isDbLoaded = true;
         console.log('Supabase conectado!');
+        loadPublicData();
         updateManuProfilePhoto();
     } catch (error) {
         console.error('Erro ao conectar com Supabase:', error);
@@ -61,7 +63,9 @@ async function initSupabase() {
 }
 
 async function loadPublicData() {
-    try {
+    if (publicDataPromise) return publicDataPromise;
+
+    publicDataPromise = (async () => {
         const service = getSupabaseService();
         const { services, settings, scheduleRows, gallery, errors = [] } = await service.fetchPublicAppData();
         const hasServicesError = errors.some(entry => entry.scope === 'services');
@@ -99,10 +103,18 @@ async function loadPublicData() {
                 blockedDates: (scheduleRows[0].blocked_dates || []).map(String)
             };
         }
-    } catch (error) {
+
+        isPublicDataLoaded = true;
+        updateManuProfilePhoto();
+        refreshVisiblePublicData();
+    })().catch(error => {
         console.error('Erro ao carregar dados:', error);
         showToast(error.message || 'Erro ao carregar dados do aplicativo.');
-    }
+    }).finally(() => {
+        publicDataPromise = null;
+    });
+
+    return publicDataPromise;
 }
 
 async function loadAllData() {
@@ -111,11 +123,11 @@ async function loadAllData() {
 }
 
 async function ensureAuthenticatedProfile(options = {}) {
-    const { includeProtectedData = true } = options;
+    const { includeProtectedData = true, sessionUser = null } = options;
     if (authProfilePromise) return authProfilePromise;
 
     authProfilePromise = (async () => {
-        await syncAuthProfile();
+        await syncAuthProfile(sessionUser);
         if (includeProtectedData) {
             await loadProtectedDataForCurrentUser();
         }
@@ -132,6 +144,21 @@ function warmProtectedDataForCurrentUser() {
     loadProtectedDataForCurrentUser().catch(error => {
         console.warn('Nao foi possivel pre-carregar dados protegidos:', error);
     });
+}
+
+function refreshVisiblePublicData() {
+    if (document.getElementById('page-home')?.classList.contains('active')) {
+        renderServices();
+        updateCartFab();
+    }
+    if (document.getElementById('page-gallery')?.classList.contains('active')) {
+        renderClientGallery();
+    }
+    if (!document.getElementById('admin-view')?.classList.contains('hidden')) {
+        if (currentAdminSection === 'portfolio') renderServicesGridAdmin();
+        if (currentAdminSection === 'gallery') renderAdminGallery();
+        if (currentAdminSection === 'settings') renderAdminSettings();
+    }
 }
 
 async function loadProtectedDataForCurrentUser() {
@@ -181,10 +208,14 @@ async function supabaseLogin(email) {
     return null;
 }
 
-async function syncAuthProfile() {
+async function syncAuthProfile(sessionUser = null) {
     if (!window.supabase?.auth) return null;
 
-    const { data: { user } } = await window.supabase.auth.getUser();
+    let user = sessionUser;
+    if (!user?.email) {
+        const { data } = await window.supabase.auth.getUser();
+        user = data?.user;
+    }
     if (!user?.email) {
         db.currentUser = null;
         db.isAdmin = false;
@@ -273,7 +304,10 @@ function attachAuthListener() {
 
         try {
             const expectedRole = getLoginRoleFromUrl() || getPendingLoginRole();
-            await ensureAuthenticatedProfile({ includeProtectedData: expectedRole === 'admin' });
+            await ensureAuthenticatedProfile({
+                includeProtectedData: expectedRole === 'admin',
+                sessionUser: session.user
+            });
             if (checkAutoLogin()) {
                 if (expectedRole !== 'admin') warmProtectedDataForCurrentUser();
                 cleanAuthRedirectUrl();
@@ -416,7 +450,10 @@ async function processInitialAuth() {
     if (data?.session?.user && !db.currentUser) {
         try {
             const expectedRole = roleFromUrl || getPendingLoginRole();
-            await ensureAuthenticatedProfile({ includeProtectedData: expectedRole === 'admin' });
+            await ensureAuthenticatedProfile({
+                includeProtectedData: expectedRole === 'admin',
+                sessionUser: data.session.user
+            });
         } catch (profileError) {
             console.error('Erro ao vincular perfil autenticado:', profileError);
             showAuthError(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
@@ -1215,6 +1252,11 @@ function renderServices() {
     const container = document.getElementById('services-container');
     if (!container) return;
     container.innerHTML = '';
+
+    if (!isPublicDataLoaded) {
+        container.innerHTML = '<p class="text-center text-stone-400 col-span-3 py-8">Carregando servicos...</p>';
+        return;
+    }
 
     if (!db.services || db.services.length === 0) {
         container.innerHTML = '<p class="text-center text-gray-400 col-span-3">Nenhum servi\u00e7o dispon\u00edvel.</p>';

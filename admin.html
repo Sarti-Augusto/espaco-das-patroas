@@ -142,13 +142,13 @@
         
         <section id="page-home" class="page min-h-screen pb-24">
             <header class="fixed top-0 w-full z-50 bg-[#fdf8f8]/80 backdrop-blur-md h-16 flex items-center px-6">
-                <div class="flex items-center gap-4">
-                    <img id="home-profile-pic" src="/icon-512x512.png" alt="" class="w-10 h-10 rounded-full object-cover" aria-hidden="true">
+                <button onclick="openClientProfileModal()" class="flex items-center gap-4 rounded-xl pr-2 text-left active:scale-[0.98] transition-transform" aria-label="Editar perfil">
+                    <img id="home-profile-pic" src="/icon-512x512.png" alt="Foto do perfil" class="w-10 h-10 rounded-full object-cover">
                     <div>
                         <h1 class="font-headline font-black text-[#7f5353] text-lg tracking-tighter">Espaço das Patroas</h1>
                         <p class="text-[10px] uppercase tracking-widest text-stone-400">Bem-vinda, <span id="user-name-display">!</span></p>
                     </div>
-                </div>
+                </button>
                 <div class="ml-auto">
                     <button onclick="proceedToBooking()" class="relative w-12 h-12 rounded-full bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform" id="cart-fab">
                         <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
@@ -183,9 +183,9 @@
                         <span class="material-symbols-outlined">calendar_month</span>
                         <span class="font-bold text-[9px] uppercase tracking-wide mt-1 leading-tight text-center max-w-20">Meus agendamentos</span>
                     </a>
-                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
-                        <span class="material-symbols-outlined">logout</span>
-                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    <a onclick="openClientProfileModal()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">account_circle</span>
+                        <span class="font-bold text-[10px] uppercase tracking-widest mt-1">Perfil</span>
                     </a>
                 </div>
             </nav>
@@ -211,8 +211,8 @@
                     <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors" id="nav-appointments-gal">
                         <span class="material-symbols-outlined">calendar_month</span><span class="font-bold text-[9px] uppercase tracking-wide mt-1 leading-tight text-center max-w-20">Meus agendamentos</span>
                     </a>
-                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
-                        <span class="material-symbols-outlined">logout</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    <a onclick="openClientProfileModal()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">account_circle</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Perfil</span>
                     </a>
                 </div>
             </nav>
@@ -241,8 +241,8 @@
                     <a onclick="goToMyAppointments()" class="flex flex-col items-center justify-center bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white py-2 px-2 rounded-xl cursor-pointer transition-colors" id="nav-appointments-app">
                         <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span><span class="font-bold text-[9px] uppercase tracking-wide mt-1 leading-tight text-center max-w-20">Meus agendamentos</span>
                     </a>
-                    <a onclick="confirmLogout()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
-                        <span class="material-symbols-outlined">logout</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Sair</span>
+                    <a onclick="openClientProfileModal()" class="flex flex-col items-center justify-center text-[#7f5353]/60 py-2 px-2 hover:bg-[#f7f3f2] rounded-xl cursor-pointer transition-colors">
+                        <span class="material-symbols-outlined">account_circle</span><span class="font-bold text-[10px] uppercase tracking-widest mt-1">Perfil</span>
                     </a>
                 </div>
             </nav>
@@ -894,6 +894,51 @@
             </section>
 
         </main>
+    </div>
+
+    <div id="client-profile-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="client-profile-title">
+        <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6 max-h-[calc(100vh-2rem)] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 id="client-profile-title" class="font-headline font-bold text-xl text-[#1c1b1b]">Meu Perfil</h3>
+                    <p class="text-sm text-stone-500 mt-1">Atualize seus dados de contato e avatar.</p>
+                </div>
+                <button onclick="closeClientProfileModal()" class="w-8 h-8 rounded-full bg-[#f7f3f2] flex items-center justify-center text-stone-400 hover:text-[#1c1b1b] transition-colors" aria-label="Fechar perfil">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="space-y-5">
+                <div class="flex items-center gap-4 rounded-2xl bg-[#f7f3f2] p-4">
+                    <img id="client-profile-preview" src="/icon-512x512.png" alt="Preview do avatar" class="w-20 h-20 rounded-full object-cover shadow-sm">
+                    <div class="flex-1">
+                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
+                            <span class="material-symbols-outlined">photo_camera</span>
+                            Alterar foto
+                            <input id="client-profile-avatar-input" type="file" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewClientProfileAvatar(this)"/>
+                        </label>
+                        <p class="text-xs text-stone-400 mt-2">Imagem ate 5MB.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nome</label>
+                    <input id="client-profile-name" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="Seu nome completo"/>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">WhatsApp</label>
+                    <input id="client-profile-phone" type="tel" inputmode="tel" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="(00) 00000-0000"/>
+                </div>
+
+                <p id="client-profile-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+
+                <div class="grid grid-cols-1 gap-3 pt-1">
+                    <button onclick="saveClientProfile(this)" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all">Salvar perfil</button>
+                    <button onclick="confirmLogout()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform">Sair da conta</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="service-modal" class="modal hidden">

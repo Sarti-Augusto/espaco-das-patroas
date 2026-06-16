@@ -34,6 +34,7 @@ let authProfilePromise = null;
 let lastAuthErrorMessage = '';
 let selectedServiceImageFile = null;
 let selectedGalleryImageFile = null;
+let selectedClientProfileImageFile = null;
 
 function getSupabaseService() {
     if (window.supabaseService) {
@@ -755,8 +756,7 @@ function checkAutoLogin() {
         return true;
     }
 
-    const userNameEl = document.getElementById('user-name-display');
-    if (userNameEl && db.currentUser.name) userNameEl.textContent = db.currentUser.name.split(' ')[0];
+    updateClientProfileUi();
     renderServices();
     updateCartFab();
     showPage('page-home');
@@ -935,6 +935,24 @@ function updateBottomNav(activeTab) {
     });
 }
 
+function getClientAvatarUrl() {
+    return normalizeImageUrl(db.currentUser?.profile_image_url || '') || PROFILE_IMAGE_FALLBACK;
+}
+
+function updateClientProfileUi() {
+    const user = db.currentUser || {};
+    const displayName = sanitizeString(user.name || '');
+    const firstName = displayName ? displayName.split(' ')[0] : '';
+    const userNameEl = document.getElementById('user-name-display');
+    if (userNameEl) userNameEl.textContent = firstName || '!';
+
+    const headerAvatar = document.getElementById('home-profile-pic');
+    if (headerAvatar) {
+        headerAvatar.src = getClientAvatarUrl();
+        headerAvatar.alt = firstName ? `Foto de ${firstName}` : 'Foto do perfil';
+    }
+}
+
 function switchToAdminView() {
     hideAllPages();
     setAuthStatus(null, '');
@@ -977,6 +995,7 @@ function goToHome() {
     resetBookingFlowState();
     hideAllPages();
     document.getElementById('page-home').classList.add('active');
+    updateClientProfileUi();
     renderServices();
     updateCartFab();
     updateBottomNav('home');
@@ -1257,8 +1276,7 @@ async function handleLogin() {
 
         saveSession();
         updateManuProfilePhoto();
-        const userNameEl = document.getElementById('user-name-display');
-        if (userNameEl) userNameEl.textContent = name.split(' ')[0];
+        updateClientProfileUi();
         renderServices();
         updateCartFab();
         showPage('page-home');
@@ -1269,6 +1287,111 @@ async function handleLogin() {
         console.error('Erro ao salvar:', error);
         setInlineStatus('login-inline-status', 'NÃ£o foi possÃ­vel salvar seus dados agora.', 'error');
         showToast('Erro ao salvar dados.');
+    }
+}
+
+function openClientProfileModal() {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+
+    selectedClientProfileImageFile = null;
+    const modal = document.getElementById('client-profile-modal');
+    const nameInput = document.getElementById('client-profile-name');
+    const phoneInput = document.getElementById('client-profile-phone');
+    const preview = document.getElementById('client-profile-preview');
+    const fileInput = document.getElementById('client-profile-avatar-input');
+
+    if (nameInput) nameInput.value = db.currentUser.name || '';
+    if (phoneInput) phoneInput.value = db.currentUser.phone || '';
+    if (preview) preview.src = getClientAvatarUrl();
+    if (fileInput) fileInput.value = '';
+    setInlineStatus('client-profile-status', '');
+    setFieldError('client-profile-name', false);
+    setFieldError('client-profile-phone', false);
+
+    modal?.classList.remove('hidden');
+    modal?.classList.add('flex');
+    nameInput?.focus();
+}
+
+function closeClientProfileModal() {
+    const modal = document.getElementById('client-profile-modal');
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+    selectedClientProfileImageFile = null;
+}
+
+function previewClientProfileAvatar(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+        validateImageFile(file);
+        selectedClientProfileImageFile = file;
+        const preview = document.getElementById('client-profile-preview');
+        if (preview) preview.src = URL.createObjectURL(file);
+        setInlineStatus('client-profile-status', 'Foto selecionada. Clique em Salvar para atualizar.', 'info');
+    } catch (error) {
+        input.value = '';
+        selectedClientProfileImageFile = null;
+        setInlineStatus('client-profile-status', error.message || 'Nao foi possivel carregar a foto.', 'error');
+        showToast(error.message || 'Nao foi possivel carregar a foto.');
+    }
+}
+
+async function saveClientProfile(button = null) {
+    if (!db.currentUser) {
+        showPage('page-login');
+        return;
+    }
+
+    const nameInput = document.getElementById('client-profile-name');
+    const phoneInput = document.getElementById('client-profile-phone');
+    const name = sanitizeString(nameInput?.value.trim() || '');
+    const phone = (phoneInput?.value || '').replace(/\D/g, '');
+
+    setFieldError('client-profile-name', !name);
+    setFieldError('client-profile-phone', !phone || phone.length < 10);
+
+    if (!name || !phone) {
+        setInlineStatus('client-profile-status', 'Preencha nome e WhatsApp para salvar.', 'error');
+        return;
+    }
+
+    if (phone.length < 10) {
+        setInlineStatus('client-profile-status', 'Digite um WhatsApp valido com DDD.', 'error');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true, 'Salvando...');
+        setInlineStatus('client-profile-status', 'Salvando perfil...', 'info');
+        let profileImageUrl = db.currentUser.profile_image_url || '';
+
+        if (selectedClientProfileImageFile) {
+            setInlineStatus('client-profile-status', 'Enviando foto...', 'info');
+            profileImageUrl = await uploadImageFile(selectedClientProfileImageFile, 'avatars', db.currentUser.id);
+        }
+
+        const user = await supabaseUpdateUser(db.currentUser.id, {
+            name,
+            phone,
+            profile_image_url: profileImageUrl
+        });
+
+        db.currentUser = user;
+        saveSession();
+        updateClientProfileUi();
+        closeClientProfileModal();
+        showToast('Perfil atualizado!');
+    } catch (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        setInlineStatus('client-profile-status', error.message || 'Nao foi possivel salvar o perfil agora.', 'error');
+        showToast(error.message || 'Erro ao salvar perfil.');
+    } finally {
+        setButtonLoading(button, false);
     }
 }
 
@@ -1292,7 +1415,7 @@ function showDefaultLoginPage() {
 
 function updateManuProfilePhoto() {
     const src = normalizeImageUrl(db.settings.profileImg || '') || PROFILE_IMAGE_FALLBACK;
-    const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic', 'admin-mobile-menu-avatar'];
+    const pics = ['main-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic', 'admin-mobile-menu-avatar'];
     pics.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -1302,6 +1425,7 @@ function updateManuProfilePhoto() {
         };
         el.src = src;
     });
+    updateClientProfileUi();
 }
 
 // ==========================================
@@ -3277,6 +3401,7 @@ window.confirmLogout = function() {
 
 window.executarLogout = async function() {
     showToast('Saindo da conta...');
+    closeClientProfileModal();
     resetBookingFlowState();
 
     await clearSession();

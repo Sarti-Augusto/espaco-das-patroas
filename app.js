@@ -4,6 +4,7 @@
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NzM2NTUsImV4cCI6MjA5MTU0OTY1NX0.lHX5WB9WCY_pEgXcN4hvve3Pi5xqJgITbESrxiO3Nwk';
 const APP_BASE_URL = 'https://espaco-das-patroas.vercel.app';
+const PROFILE_IMAGE_FALLBACK = '/icon-512x512.png';
 const SERVICE_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x400?text=Servico';
 const SERVICE_CARD_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Servico';
 const IMAGE_UPLOAD_BUCKET = 'service-images';
@@ -26,6 +27,7 @@ let db = {
 let isDbLoaded = false;
 let pendingLoginRole = localStorage.getItem('espacoPatroas_pendingLoginRole') || 'client';
 let authListenerAttached = false;
+let authProfilePromise = null;
 let lastAuthErrorMessage = '';
 let selectedServiceImageFile = null;
 let selectedGalleryImageFile = null;
@@ -49,7 +51,7 @@ async function initSupabase() {
             }
         });
         attachAuthListener();
-        await loadAllData();
+        await loadPublicData();
         isDbLoaded = true;
         console.log('Supabase conectado!');
         updateManuProfilePhoto();
@@ -58,7 +60,7 @@ async function initSupabase() {
     }
 }
 
-async function loadAllData() {
+async function loadPublicData() {
     try {
         const service = getSupabaseService();
         const { services, settings, scheduleRows, gallery, errors = [] } = await service.fetchPublicAppData();
@@ -97,14 +99,39 @@ async function loadAllData() {
                 blockedDates: (scheduleRows[0].blocked_dates || []).map(String)
             };
         }
-
-        await syncAuthProfile();
-
-        await loadProtectedDataForCurrentUser();
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast(error.message || 'Erro ao carregar dados do aplicativo.');
     }
+}
+
+async function loadAllData() {
+    await loadPublicData();
+    await ensureAuthenticatedProfile();
+}
+
+async function ensureAuthenticatedProfile(options = {}) {
+    const { includeProtectedData = true } = options;
+    if (authProfilePromise) return authProfilePromise;
+
+    authProfilePromise = (async () => {
+        await syncAuthProfile();
+        if (includeProtectedData) {
+            await loadProtectedDataForCurrentUser();
+        }
+        return db.currentUser;
+    })().finally(() => {
+        authProfilePromise = null;
+    });
+
+    return authProfilePromise;
+}
+
+function warmProtectedDataForCurrentUser() {
+    if (!db.currentUser) return;
+    loadProtectedDataForCurrentUser().catch(error => {
+        console.warn('Nao foi possivel pre-carregar dados protegidos:', error);
+    });
 }
 
 async function loadProtectedDataForCurrentUser() {
@@ -245,9 +272,12 @@ function attachAuthListener() {
         if (event !== 'SIGNED_IN' || !session?.user) return;
 
         try {
-            await syncAuthProfile();
-            await loadProtectedDataForCurrentUser();
-            if (checkAutoLogin()) cleanAuthRedirectUrl();
+            const expectedRole = getLoginRoleFromUrl() || getPendingLoginRole();
+            await ensureAuthenticatedProfile({ includeProtectedData: expectedRole === 'admin' });
+            if (checkAutoLogin()) {
+                if (expectedRole !== 'admin') warmProtectedDataForCurrentUser();
+                cleanAuthRedirectUrl();
+            }
         } catch (error) {
             console.error('Erro ao processar sessao autenticada:', error);
             showToast(error.message || 'Login autenticado, mas nao foi possivel carregar seu perfil.');
@@ -385,8 +415,8 @@ async function processInitialAuth() {
 
     if (data?.session?.user && !db.currentUser) {
         try {
-            await syncAuthProfile();
-            await loadProtectedDataForCurrentUser();
+            const expectedRole = roleFromUrl || getPendingLoginRole();
+            await ensureAuthenticatedProfile({ includeProtectedData: expectedRole === 'admin' });
         } catch (profileError) {
             console.error('Erro ao vincular perfil autenticado:', profileError);
             showAuthError(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
@@ -407,6 +437,8 @@ async function processInitialAuth() {
         return false;
     }
     if (routed) {
+        const expectedRole = roleFromUrl || getPendingLoginRole();
+        if (expectedRole !== 'admin') warmProtectedDataForCurrentUser();
         renderAuthDebugPanel('');
         cleanAuthRedirectUrl();
     }
@@ -1050,11 +1082,12 @@ function stopAdminAppointmentNotifications() {
     knownAdminAppointmentIds = new Set();
 }
 
-function goToMyAppointments() {
+async function goToMyAppointments() {
     if (!db.currentUser) {
         showPage('page-login');
         return;
     }
+    await loadProtectedDataForCurrentUser();
     renderMyAppointments();
     showPage('page-my-appointments');
     updateBottomNav('appointments');
@@ -1162,11 +1195,16 @@ function showAdminLogin() {
 }
 
 function updateManuProfilePhoto() {
-    const src = db.settings.profileImg || 'https://via.placeholder.com/150?text=Manu+Sarti';
+    const src = normalizeImageUrl(db.settings.profileImg || '') || PROFILE_IMAGE_FALLBACK;
     const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic', 'admin-mobile-menu-avatar'];
     pics.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.src = src;
+        if (!el) return;
+        el.onerror = () => {
+            if (el.src.endsWith(PROFILE_IMAGE_FALLBACK)) return;
+            el.src = PROFILE_IMAGE_FALLBACK;
+        };
+        el.src = src;
     });
 }
 
@@ -2892,7 +2930,7 @@ async function confirmDeleteService(id) {
 // ==========================================
 function renderAdminSettings() {
     const el = document.getElementById('admin-settings-photo');
-    if (el) el.src = db.settings.profileImg || 'https://via.placeholder.com/150';
+    if (el) el.src = normalizeImageUrl(db.settings.profileImg || '') || PROFILE_IMAGE_FALLBACK;
 }
 
 function handleProfileImageUpload(input) {

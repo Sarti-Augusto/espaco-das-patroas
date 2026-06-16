@@ -38,6 +38,28 @@
     }
 
     window.supabaseService = {
+        async fetchEssentialPublicAppData() {
+            const client = getClient();
+            const [servicesData, settingsData, scheduleData] = await Promise.all([
+                client.from('services').select('*'),
+                client.from('settings').select('setting_key, setting_value').eq('setting_key', 'profileImg'),
+                client.from('schedule_config').select('*').limit(1)
+            ]);
+
+            return buildPublicAppDataPayload(servicesData, settingsData, scheduleData, { data: [] });
+        },
+
+        async fetchGalleryData() {
+            const client = getClient();
+            const galleryData = await client
+                .from('gallery')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (galleryData.error) throw galleryData.error;
+            return galleryData.data || [];
+        },
+
         async fetchPublicAppData() {
             const client = getClient();
             const [servicesData, settingsData, scheduleData, galleryData] = await Promise.all([

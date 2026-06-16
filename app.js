@@ -4,6 +4,7 @@
 const SUPABASE_URL = 'https://ujidqagyllheibmuuboy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqaWRxYWd5bGxoZWlibXV1Ym95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NzM2NTUsImV4cCI6MjA5MTU0OTY1NX0.lHX5WB9WCY_pEgXcN4hvve3Pi5xqJgITbESrxiO3Nwk';
 const APP_BASE_URL = 'https://espaco-das-patroas.vercel.app';
+const PUBLIC_DATA_CACHE_KEY = 'espacoPatroas_publicDataCache_v1';
 const PROFILE_IMAGE_FALLBACK = '/icon-512x512.png';
 const SERVICE_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x400?text=Servico';
 const SERVICE_CARD_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Servico';
@@ -53,6 +54,7 @@ async function initSupabase() {
             }
         });
         attachAuthListener();
+        hydratePublicDataFromCache();
         isDbLoaded = true;
         console.log('Supabase conectado!');
         loadPublicData();
@@ -67,46 +69,13 @@ async function loadPublicData() {
 
     publicDataPromise = (async () => {
         const service = getSupabaseService();
-        const { services, settings, scheduleRows, gallery, errors = [] } = await service.fetchPublicAppData();
-        const hasServicesError = errors.some(entry => entry.scope === 'services');
-        const hasGalleryError = errors.some(entry => entry.scope === 'gallery');
-
-        if (!hasServicesError) {
-            db.services = (services || []).filter(s => s.is_active === true || s.is_active === 'true');
-        }
-        db.settings = { profileImg: "" };
-        db.appointmentsCache = [];
-        if (!hasGalleryError) {
-            db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
-        }
-        
-        db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
-
-        if (errors.length > 0) {
-            console.warn('Falhas parciais ao carregar dados publicos:', errors);
-            if (hasServicesError || hasGalleryError) {
-                showToast('Nao foi possivel atualizar todo o catalogo agora. Tentando manter os dados anteriores.');
-            }
-        }
-
-        if (settings && settings.length > 0) {
-            const profileSetting = settings.find(s => s.setting_key === 'profileImg');
-            if (profileSetting && profileSetting.setting_value) db.settings.profileImg = profileSetting.setting_value;
-        }
-
-        if (scheduleRows && scheduleRows.length > 0) {
-            db.scheduleConfig = {
-                start: scheduleRows[0].start_time || "09:00",
-                end: scheduleRows[0].end_time || "18:00",
-                slotDuration: Number(scheduleRows[0].slot_duration) || 3,
-                availableDays: (scheduleRows[0].available_days || [1, 2, 3, 4, 5]).map(Number),
-                blockedDates: (scheduleRows[0].blocked_dates || []).map(String)
-            };
-        }
-
+        const payload = await service.fetchEssentialPublicAppData();
+        applyPublicDataPayload(payload, { includeGallery: false });
         isPublicDataLoaded = true;
+        cachePublicData();
         updateManuProfilePhoto();
         refreshVisiblePublicData();
+        warmGalleryData();
     })().catch(error => {
         console.error('Erro ao carregar dados:', error);
         showToast(error.message || 'Erro ao carregar dados do aplicativo.');
@@ -115,6 +84,91 @@ async function loadPublicData() {
     });
 
     return publicDataPromise;
+}
+
+function applyPublicDataPayload(payload, options = {}) {
+    const { includeGallery = true } = options;
+    const { services, settings, scheduleRows, gallery, errors = [] } = payload || {};
+    const hasServicesError = errors.some(entry => entry.scope === 'services');
+    const hasGalleryError = errors.some(entry => entry.scope === 'gallery');
+
+    if (!hasServicesError) {
+        db.services = (services || []).filter(s => s.is_active === true || s.is_active === 'true');
+    }
+    db.settings = { profileImg: "" };
+    if (includeGallery && !hasGalleryError) {
+        db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
+    }
+
+    db.scheduleConfig = { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] };
+
+    if (errors.length > 0) {
+        console.warn('Falhas parciais ao carregar dados publicos:', errors);
+        if (hasServicesError || (includeGallery && hasGalleryError)) {
+            showToast('Nao foi possivel atualizar todo o catalogo agora. Tentando manter os dados anteriores.');
+        }
+    }
+
+    if (settings && settings.length > 0) {
+        const profileSetting = settings.find(s => s.setting_key === 'profileImg');
+        if (profileSetting && profileSetting.setting_value) db.settings.profileImg = profileSetting.setting_value;
+    }
+
+    if (scheduleRows && scheduleRows.length > 0) {
+        db.scheduleConfig = {
+            start: scheduleRows[0].start_time || "09:00",
+            end: scheduleRows[0].end_time || "18:00",
+            slotDuration: Number(scheduleRows[0].slot_duration) || 3,
+            availableDays: (scheduleRows[0].available_days || [1, 2, 3, 4, 5]).map(Number),
+            blockedDates: (scheduleRows[0].blocked_dates || []).map(String)
+        };
+    }
+}
+
+function hydratePublicDataFromCache() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(PUBLIC_DATA_CACHE_KEY) || 'null');
+        if (!cached || !Array.isArray(cached.services)) return false;
+        db.services = cached.services;
+        db.settings = cached.settings || { profileImg: "" };
+        db.scheduleConfig = cached.scheduleConfig || db.scheduleConfig;
+        isPublicDataLoaded = db.services.length > 0;
+        return isPublicDataLoaded;
+    } catch (error) {
+        console.warn('Cache publico invalido:', error);
+        localStorage.removeItem(PUBLIC_DATA_CACHE_KEY);
+        return false;
+    }
+}
+
+function cachePublicData() {
+    try {
+        localStorage.setItem(PUBLIC_DATA_CACHE_KEY, JSON.stringify({
+            services: db.services,
+            settings: db.settings,
+            scheduleConfig: db.scheduleConfig,
+            cachedAt: Date.now()
+        }));
+    } catch (error) {
+        console.warn('Nao foi possivel salvar cache publico:', error);
+    }
+}
+
+async function loadGalleryData() {
+    const gallery = await getSupabaseService().fetchGalleryData();
+    db.gallery = (gallery || []).filter(g => g.is_active === true || g.is_active === 'true');
+    return db.gallery;
+}
+
+function warmGalleryData() {
+    loadGalleryData()
+        .then(() => {
+            if (document.getElementById('page-gallery')?.classList.contains('active')) renderClientGallery();
+            if (!document.getElementById('admin-view')?.classList.contains('hidden') && currentAdminSection === 'gallery') renderAdminGallery();
+        })
+        .catch(error => {
+            console.warn('Nao foi possivel pre-carregar catalogo:', error);
+        });
 }
 
 async function loadAllData() {
@@ -3176,7 +3230,7 @@ async function saveGalleryItem() {
 
         showToast(id ? 'Foto atualizada!' : 'Nova foto adicionada ao CatÃ¡logo!');
         
-        await loadAllData();
+        await loadGalleryData();
         closeGalleryModal();
         renderAdminGallery();
     } catch (err) {
@@ -3201,7 +3255,7 @@ async function confirmDeleteGalleryItem(id) {
     if (!confirm('Deseja excluir esta foto do catÃ¡logo?')) return;
     try {
         await getSupabaseService().archiveGalleryItem(id);
-        await loadAllData();
+        await loadGalleryData();
         renderAdminGallery();
         showToast('Foto removida do catÃ¡logo.');
     } catch (err) {

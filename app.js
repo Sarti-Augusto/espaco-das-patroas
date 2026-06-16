@@ -1285,6 +1285,11 @@ function showAdminLogin() {
     document.getElementById('page-admin-login')?.classList.add('active');
 }
 
+function showDefaultLoginPage() {
+    const loginPageId = isAdminEntryPage() ? 'page-admin-login' : 'page-login';
+    showPage(loginPageId);
+}
+
 function updateManuProfilePhoto() {
     const src = normalizeImageUrl(db.settings.profileImg || '') || PROFILE_IMAGE_FALLBACK;
     const pics = ['main-profile-pic', 'home-profile-pic', 'admin-avatar', 'admin-settings-photo', 'login-profile-pic', 'admin-login-profile-pic', 'admin-mobile-menu-avatar'];
@@ -3297,14 +3302,19 @@ window.executarLogout = async function() {
 // INITIALIZATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    showAuthReturnLoading();
-    await initSupabase();
-    if (!hasAuthRedirectPayload()) hideAllPages();
+    const isAuthReturn = showAuthReturnLoading();
 
-    const didRoute = await processInitialAuth();
-    if (!didRoute) {
-        const loginPage = document.getElementById(isAdminEntryPage() ? 'page-admin-login' : 'page-login');
-        if (loginPage) loginPage.classList.add('active');
+    try {
+        await initSupabase();
+
+        const didRoute = await processInitialAuth();
+        if (!didRoute && !isAuthReturn) {
+            showDefaultLoginPage();
+        }
+    } catch (error) {
+        console.error('Erro ao inicializar aplicativo:', error);
+        showDefaultLoginPage();
+        showToast('Nao foi possivel carregar sua sessao agora. Tente novamente.');
     }
 });
 

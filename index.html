@@ -515,6 +515,51 @@
 
     </div>
 
+    <div id="client-profile-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="client-profile-title">
+        <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6 max-h-[calc(100vh-2rem)] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 id="client-profile-title" class="font-headline font-bold text-xl text-[#1c1b1b]">Meu Perfil</h3>
+                    <p class="text-sm text-stone-500 mt-1">Atualize seus dados de contato e avatar.</p>
+                </div>
+                <button onclick="closeClientProfileModal()" class="w-8 h-8 rounded-full bg-[#f7f3f2] flex items-center justify-center text-stone-400 hover:text-[#1c1b1b] transition-colors" aria-label="Fechar perfil">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="space-y-5">
+                <div class="flex items-center gap-4 rounded-2xl bg-[#f7f3f2] p-4">
+                    <img id="client-profile-preview" src="/icon-512x512.png" alt="Preview do avatar" class="w-20 h-20 rounded-full object-cover shadow-sm">
+                    <div class="flex-1">
+                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
+                            <span class="material-symbols-outlined">photo_camera</span>
+                            Alterar foto
+                            <input id="client-profile-avatar-input" type="file" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewClientProfileAvatar(this)"/>
+                        </label>
+                        <p class="text-xs text-stone-400 mt-2">Imagem ate 5MB.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nome</label>
+                    <input id="client-profile-name" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="Seu nome completo"/>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">WhatsApp</label>
+                    <input id="client-profile-phone" type="tel" inputmode="tel" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="(00) 00000-0000"/>
+                </div>
+
+                <p id="client-profile-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+
+                <div class="grid grid-cols-1 gap-3 pt-1">
+                    <button onclick="saveClientProfile(this)" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all">Salvar perfil</button>
+                    <button onclick="confirmLogout()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform">Sair da conta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="admin-view" class="hidden lg:flex min-h-screen">
         <aside class="admin-sidebar fixed left-0 top-0 h-screen flex flex-col py-6 w-64 z-50 border-r">
             <div class="px-6 mb-8 flex items-center gap-3">
@@ -896,51 +941,6 @@
         </main>
     </div>
 
-    <div id="client-profile-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="client-profile-title">
-        <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6 max-h-[calc(100vh-2rem)] overflow-y-auto">
-            <div class="flex justify-between items-center mb-6">
-                <div>
-                    <h3 id="client-profile-title" class="font-headline font-bold text-xl text-[#1c1b1b]">Meu Perfil</h3>
-                    <p class="text-sm text-stone-500 mt-1">Atualize seus dados de contato e avatar.</p>
-                </div>
-                <button onclick="closeClientProfileModal()" class="w-8 h-8 rounded-full bg-[#f7f3f2] flex items-center justify-center text-stone-400 hover:text-[#1c1b1b] transition-colors" aria-label="Fechar perfil">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-
-            <div class="space-y-5">
-                <div class="flex items-center gap-4 rounded-2xl bg-[#f7f3f2] p-4">
-                    <img id="client-profile-preview" src="/icon-512x512.png" alt="Preview do avatar" class="w-20 h-20 rounded-full object-cover shadow-sm">
-                    <div class="flex-1">
-                        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-[#7f5353] font-bold text-sm hover:bg-[#ebe7e7] transition-colors">
-                            <span class="material-symbols-outlined">photo_camera</span>
-                            Alterar foto
-                            <input id="client-profile-avatar-input" type="file" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewClientProfileAvatar(this)"/>
-                        </label>
-                        <p class="text-xs text-stone-400 mt-2">Imagem ate 5MB.</p>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nome</label>
-                    <input id="client-profile-name" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="Seu nome completo"/>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">WhatsApp</label>
-                    <input id="client-profile-phone" type="tel" inputmode="tel" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="(00) 00000-0000"/>
-                </div>
-
-                <p id="client-profile-status" class="hidden rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
-
-                <div class="grid grid-cols-1 gap-3 pt-1">
-                    <button onclick="saveClientProfile(this)" class="w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all">Salvar perfil</button>
-                    <button onclick="confirmLogout()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform">Sair da conta</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div id="service-modal" class="modal hidden">
         <div class="bg-white rounded-2xl w-full max-w-lg mx-4 p-6">
             <div class="flex justify-between items-center mb-6">
@@ -1031,6 +1031,6 @@
     <script src="booking-schedule.js"></script>
     <script src="booking-payment.js"></script>
     <script src="booking-confirmation.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=20260617-profile-fix"></script>
 </body>
 </html>

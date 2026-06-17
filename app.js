@@ -1395,6 +1395,11 @@ async function saveClientProfile(button = null) {
     }
 }
 
+window.openClientProfileModal = openClientProfileModal;
+window.closeClientProfileModal = closeClientProfileModal;
+window.previewClientProfileAvatar = previewClientProfileAvatar;
+window.saveClientProfile = saveClientProfile;
+
 async function goToLogin() {
     await clearSession();
     updateManuProfilePhoto();

@@ -118,6 +118,27 @@
             return data;
         },
 
+        async createBookingPayment(payload) {
+            const client = getClient();
+            const { data, error } = await client.functions.invoke('create-booking-payment', {
+                body: payload
+            });
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            return data;
+        },
+
+        async fetchPaymentByAppointment(appointmentId) {
+            const client = getClient();
+            const { data, error } = await client
+                .from('payments')
+                .select('id, appointment_id, amount, method, status, status_detail, qr_code, qr_code_base64, ticket_url, expires_at, paid_at, updated_at')
+                .eq('appointment_id', appointmentId)
+                .single();
+            if (error) throw error;
+            return data;
+        },
+
         async updateService(serviceId, updates) {
             const client = getClient();
             const { data, error } = await client.from('services').update(updates).eq('id', serviceId).select().single();

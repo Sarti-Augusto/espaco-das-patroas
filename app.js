@@ -674,6 +674,10 @@ async function supabaseCreateAppointment(appointmentData) {
     return data;
 }
 
+async function supabaseCreateBookingPayment(payload) {
+    return getSupabaseService().createBookingPayment(payload);
+}
+
 async function supabaseUpdateService(serviceId, updates) {
     const data = await getSupabaseService().updateService(serviceId, updates);
     
@@ -779,6 +783,9 @@ let adminNotificationBaselineReady = false;
 let knownAdminAppointmentIds = new Set();
 let currentAdminSection = 'clients';
 let lastConfirmedBookingForWhatsApp = null;
+let activePixCheckout = null;
+let pixStatusInterval = null;
+let pixCountdownInterval = null;
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
 const ADMIN_WHATSAPP_NUMBER = '5527997559191';
@@ -1681,7 +1688,7 @@ async function confirmBooking() {
         setButtonLoading,
         getBookedSlots,
         populateTimes,
-        createAppointment: supabaseCreateAppointment,
+        createBookingPayment: supabaseCreateBookingPayment,
         updateUser: supabaseUpdateUser,
         resetBookingFlowState,
         renderSuccess,
@@ -1692,6 +1699,11 @@ async function confirmBooking() {
 
     if (result?.reason === 'slot-already-booked') {
         selectedTime = result.selectedTime;
+    }
+
+    if (result?.ok && result.pendingPayment) {
+        startPixCheckout(result);
+        return;
     }
 
     if (result?.ok && result.user) {
@@ -1786,6 +1798,110 @@ async function copyPixKey() {
         showToast
     });
 }
+
+function stopPixTracking() {
+    if (pixStatusInterval) window.clearInterval(pixStatusInterval);
+    if (pixCountdownInterval) window.clearInterval(pixCountdownInterval);
+    pixStatusInterval = null;
+    pixCountdownInterval = null;
+}
+
+function updatePixCountdown() {
+    const countdown = document.getElementById('pix-payment-countdown');
+    const expiresAt = activePixCheckout?.payment?.expires_at;
+    if (!countdown || !expiresAt) return;
+
+    const remaining = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    countdown.textContent = remaining > 0
+        ? `Expira em ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : 'PIX expirado';
+
+    if (remaining === 0) {
+        getBookingPayment().updatePixStatus('PIX expirado. Escolha outra forma de pagamento.', 'error');
+        document.getElementById('pix-payment-retry')?.classList.remove('hidden');
+        stopPixTracking();
+    }
+}
+
+async function checkPixPaymentStatus() {
+    if (!activePixCheckout?.appointment?.id) return;
+
+    try {
+        const payment = await getSupabaseService().fetchPaymentByAppointment(activePixCheckout.appointment.id);
+        activePixCheckout.payment = payment;
+
+        if (payment.status === 'approved') {
+            stopPixTracking();
+            sessionStorage.removeItem('espacoPatroas_activePix');
+            getBookingPayment().updatePixStatus('Pagamento aprovado!', 'approved');
+
+            const appointment = activePixCheckout.appointment;
+            const nextAppointmentsCount = (db.currentUser?.appointments_count || 0) + 1;
+            if (db.currentUser) {
+                db.currentUser = { ...db.currentUser, appointments_count: nextAppointmentsCount, type: 'Recorrente' };
+            }
+            renderSuccess({
+                services: formatServiceNames(appointment.services_names).split(', '),
+                price: appointment.price,
+                date: appointment.appointment_date,
+                time: appointment.appointment_time,
+                paymentMethod: 'pix'
+            });
+            updateBookingProgress('success');
+            resetBookingFlowState();
+            showPage('page-success');
+            showToast('Pagamento aprovado e horario confirmado!');
+            warmProtectedDataForCurrentUser();
+            return;
+        }
+
+        if (['rejected', 'cancelled', 'expired', 'refunded', 'charged_back', 'error'].includes(payment.status)) {
+            stopPixTracking();
+            sessionStorage.removeItem('espacoPatroas_activePix');
+            getBookingPayment().updatePixStatus('O PIX nao foi aprovado. Escolha outra forma de pagamento.', 'error');
+            document.getElementById('pix-payment-retry')?.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.warn('Nao foi possivel atualizar o status do PIX:', error);
+    }
+}
+
+function startPixCheckout(result) {
+    activePixCheckout = {
+        appointment: result.appointment,
+        payment: result.payment,
+        services: result.services || []
+    };
+    sessionStorage.setItem('espacoPatroas_activePix', JSON.stringify(activePixCheckout));
+    getBookingPayment().renderPixCheckout({ payment: result.payment, formatCurrency });
+    stopPixTracking();
+    updatePixCountdown();
+    pixCountdownInterval = window.setInterval(updatePixCountdown, 1000);
+    pixStatusInterval = window.setInterval(checkPixPaymentStatus, 3000);
+    checkPixPaymentStatus();
+}
+
+async function copyGeneratedPixCode() {
+    const code = document.getElementById('pix-copy-code')?.value || '';
+    if (!code) return showToast('Codigo PIX indisponivel.');
+    const copied = await getBookingPayment().copyTextToClipboard(code);
+    showToast(copied ? 'Codigo PIX copiado!' : 'Nao foi possivel copiar o codigo PIX.');
+}
+
+function resetPixCheckout() {
+    stopPixTracking();
+    activePixCheckout = null;
+    sessionStorage.removeItem('espacoPatroas_activePix');
+    getBookingPayment().resetPixCheckoutUi();
+    selectedPaymentMethod = null;
+    document.querySelectorAll('input[name="payment"]').forEach(input => { input.checked = false; });
+    updatePaymentSummaryNote();
+}
+
+window.copyGeneratedPixCode = copyGeneratedPixCode;
+window.resetPixCheckout = resetPixCheckout;
 
 function renderSuccess(app) {
     return getBookingPayment().renderSuccess({

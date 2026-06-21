@@ -439,15 +439,7 @@
                             </div>
                         </label>
                         <div id="payment-pix-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
-                            <p class="text-sm text-[#50453b]">A forma de pagamento PIX sera enviada para a administradora junto com o agendamento.</p>
-                            <div class="flex items-center justify-between">
-                                <p class="text-xs text-[#50453b]">Chave PIX (Telefone):</p>
-                                <strong class="text-sm text-[#7f5353]">27 99755-5191</strong>
-                            </div>
-                            <button onclick="copyPixKey()" class="w-full py-3 rounded-xl bg-[#7f5353] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
-                                <span class="material-symbols-outlined">content_copy</span>
-                                Copiar Chave PIX
-                            </button>
+                            <p class="text-sm text-[#50453b]">Será gerado um PIX de 50% do valor para reservar o horário por 15 minutos.</p>
                         </div>
                     </div>
 
@@ -470,6 +462,24 @@
                 <button id="confirm-booking-button" onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
                     Confirmar Agendamento
                 </button>
+
+                <section id="pix-checkout-panel" class="hidden mt-6 bg-white rounded-xl border border-[#d4c4b7]/30 p-6 shadow-sm text-center">
+                    <div class="w-12 h-12 mx-auto rounded-full bg-[#d59f9f]/10 text-[#7f5353] flex items-center justify-center">
+                        <span class="material-symbols-outlined">qr_code_2</span>
+                    </div>
+                    <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mt-4">Pague o sinal via PIX</h3>
+                    <p id="pix-payment-amount" class="text-2xl font-extrabold text-[#7f5353] mt-2">R$ 0,00</p>
+                    <p id="pix-payment-countdown" class="text-sm text-stone-500 mt-1">Expira em 15:00</p>
+                    <img id="pix-qr-image" class="w-56 h-56 object-contain mx-auto my-5 rounded-xl border border-[#d4c4b7]/20" alt="QR Code PIX">
+                    <label class="block text-left text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">PIX copia e cola</label>
+                    <textarea id="pix-copy-code" class="w-full h-24 resize-none bg-[#f7f3f2] rounded-xl p-3 text-xs text-[#50453b]" readonly></textarea>
+                    <button onclick="copyGeneratedPixCode()" class="w-full mt-3 py-3 rounded-xl bg-[#7f5353] text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <span class="material-symbols-outlined">content_copy</span>
+                        Copiar código PIX
+                    </button>
+                    <p id="pix-payment-status" class="mt-4 text-sm font-medium text-amber-700" role="status" aria-live="polite">Aguardando pagamento...</p>
+                    <button id="pix-payment-retry" onclick="resetPixCheckout()" class="hidden w-full mt-4 py-3 rounded-xl bg-[#f7f3f2] text-[#7f5353] font-bold text-sm">Escolher outra forma</button>
+                </section>
             </main>
         </section>
 
@@ -1026,11 +1036,11 @@
         </div>
     </div>
 
-    <script src="supabase-service.js"></script>
+    <script src="supabase-service.js?v=20260621-payments-1"></script>
     <script src="booking-flow.js"></script>
     <script src="booking-schedule.js"></script>
-    <script src="booking-payment.js"></script>
-    <script src="booking-confirmation.js"></script>
-    <script src="app.js?v=20260617-profile-fix"></script>
+    <script src="booking-payment.js?v=20260621-payments-1"></script>
+    <script src="booking-confirmation.js?v=20260621-payments-1"></script>
+    <script src="app.js?v=20260621-payments-1"></script>
 </body>
 </html>

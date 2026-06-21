@@ -77,10 +77,51 @@
         if (paymentEl) paymentEl.textContent = `Pagamento: ${formatPaymentMethod(appointment.paymentMethod)}`;
     }
 
+    function renderPixCheckout(options) {
+        const { payment, formatCurrency } = options || {};
+        if (!payment) return;
+
+        const panel = document.getElementById('pix-checkout-panel');
+        const methods = document.getElementById('payment-methods-section');
+        const confirmButton = document.getElementById('confirm-booking-button');
+        const qrImage = document.getElementById('pix-qr-image');
+        const copyCode = document.getElementById('pix-copy-code');
+        const amount = document.getElementById('pix-payment-amount');
+        const status = document.getElementById('pix-payment-status');
+
+        panel?.classList.remove('hidden');
+        methods?.classList.add('hidden');
+        confirmButton?.classList.add('hidden');
+        if (qrImage && payment.qr_code_base64) qrImage.src = `data:image/png;base64,${payment.qr_code_base64}`;
+        if (copyCode) copyCode.value = payment.qr_code || '';
+        if (amount) amount.textContent = typeof formatCurrency === 'function' ? formatCurrency(payment.amount) : String(payment.amount);
+        if (status) status.textContent = 'Aguardando pagamento...';
+    }
+
+    function resetPixCheckoutUi() {
+        document.getElementById('pix-checkout-panel')?.classList.add('hidden');
+        document.getElementById('payment-methods-section')?.classList.remove('hidden');
+        document.getElementById('confirm-booking-button')?.classList.remove('hidden');
+        document.getElementById('pix-payment-retry')?.classList.add('hidden');
+        const status = document.getElementById('pix-payment-status');
+        if (status) status.textContent = 'Aguardando pagamento...';
+    }
+
+    function updatePixStatus(message, variant = 'pending') {
+        const status = document.getElementById('pix-payment-status');
+        if (!status) return;
+        status.textContent = message;
+        status.classList.remove('text-amber-700', 'text-emerald-700', 'text-red-600');
+        status.classList.add(variant === 'approved' ? 'text-emerald-700' : variant === 'error' ? 'text-red-600' : 'text-amber-700');
+    }
+
     window.bookingPayment = {
         copyTextToClipboard,
         copyPixKey,
         formatPaymentMethod,
-        renderSuccess
+        renderSuccess,
+        renderPixCheckout,
+        resetPixCheckoutUi,
+        updatePixStatus
     };
 })();

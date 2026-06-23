@@ -57,18 +57,24 @@
         if (totalElement) totalElement.textContent = totalLabel;
     }
 
-    function updatePaymentSummaryNote() {
+    function updatePaymentSummaryNote(options = {}) {
         const noteElement = document.getElementById('payment-summary-note');
         if (!noteElement) return;
 
+        const depositPercentage = Number(options.depositPercentage || 50);
+        const requiresDeposit = options.requiresDeposit !== false;
+
         if (!state.selectedPaymentMethod) {
-            noteElement.textContent = 'Escolha a forma de pagamento para concluir o agendamento.';
+            noteElement.textContent = requiresDeposit
+                ? `Escolha PIX ou cartao para pagar ${depositPercentage}% e reservar o horario.`
+                : 'Cliente recorrente: escolha como deseja confirmar o agendamento.';
             return;
         }
 
         const notes = {
-            pix: 'Pagamento via PIX. A administradora recebera essa informacao no WhatsApp.',
-            cash: 'Pagamento em dinheiro no atendimento. A administradora recebera essa informacao no WhatsApp.'
+            pix: `Pagamento via PIX de ${depositPercentage}% para reservar o horario.`,
+            card: `Pagamento no cartao de ${depositPercentage}% para confirmar o agendamento.`,
+            cash: 'Pagamento presencial liberado para cliente recorrente.'
         };
 
         noteElement.textContent = notes[state.selectedPaymentMethod] || 'Escolha a forma de pagamento para concluir o agendamento.';
@@ -110,6 +116,9 @@
         if (servicePriceEl) servicePriceEl.textContent = totalLabel;
 
         document.getElementById('payment-pix-info')?.classList.add('hidden');
+        document.getElementById('card-payment-panel')?.classList.add('hidden');
+        document.getElementById('confirm-booking-button')?.classList.remove('hidden');
+        document.getElementById('confirm-card-booking-button')?.classList.add('hidden');
 
         state.selectedPaymentMethod = null;
         document.querySelectorAll('input[name="payment"]').forEach(input => {
@@ -117,19 +126,30 @@
         });
     }
 
-    function updatePaymentOptions() {
+    function updatePaymentOptions(options = {}) {
         document.getElementById('payment-pix-container')?.classList.remove('hidden');
-        document.getElementById('payment-cash-container')?.classList.remove('hidden');
+        document.getElementById('payment-card-container')?.classList.toggle('hidden', !options.mercadoPagoPublicKey);
+        document.getElementById('payment-cash-container')?.classList.toggle('hidden', !options.canPayAtAppointment);
     }
 
     function applyPaymentMethodUi(method) {
+        state.selectedPaymentMethod = method || null;
         document.getElementById('payment-pix-info')?.classList.add('hidden');
+        document.getElementById('card-payment-panel')?.classList.add('hidden');
+        document.getElementById('confirm-booking-button')?.classList.remove('hidden');
+        document.getElementById('confirm-card-booking-button')?.classList.add('hidden');
 
         const radio = document.getElementById(`payment-${method}`);
         if (radio) radio.checked = true;
 
         if (method === 'pix') {
             document.getElementById('payment-pix-info')?.classList.remove('hidden');
+        }
+
+        if (method === 'card') {
+            document.getElementById('card-payment-panel')?.classList.remove('hidden');
+            document.getElementById('confirm-booking-button')?.classList.add('hidden');
+            document.getElementById('confirm-card-booking-button')?.classList.remove('hidden');
         }
     }
 

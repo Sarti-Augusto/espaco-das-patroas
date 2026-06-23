@@ -678,6 +678,10 @@ async function supabaseCreateBookingPayment(payload) {
     return getSupabaseService().createBookingPayment(payload);
 }
 
+async function supabaseFetchBookingPaymentOptions() {
+    return getSupabaseService().fetchBookingPaymentOptions();
+}
+
 async function supabaseUpdateService(serviceId, updates) {
     const data = await getSupabaseService().updateService(serviceId, updates);
     
@@ -786,6 +790,7 @@ let lastConfirmedBookingForWhatsApp = null;
 let activePixCheckout = null;
 let pixStatusInterval = null;
 let pixCountdownInterval = null;
+let bookingPaymentOptions = null;
 
 const ADMIN_EMAIL = 'emanuelysarti02@gmail.com';
 const ADMIN_WHATSAPP_NUMBER = '5527997559191';
@@ -1662,16 +1667,10 @@ function selectTime(time, element) {
 // ==========================================
 // PAYMENT
 // ==========================================
-function isRecurringClient() {
-    if (!db.currentUser) return false;
-
-    const appointmentsCount = Number(db.currentUser.appointments_count) || 0;
-    return db.currentUser.type === 'Recorrente' || appointmentsCount > 0;
-}
-
-
-async function confirmBooking() {
-    const confirmButton = document.getElementById('confirm-booking-button');
+async function confirmBooking(cardPaymentData = null) {
+    const confirmButton = selectedPaymentMethod === 'card'
+        ? document.getElementById('confirm-card-booking-button')
+        : document.getElementById('confirm-booking-button');
     if (!db.currentUser) {
         showPage('page-login');
         return;
@@ -1682,6 +1681,7 @@ async function confirmBooking() {
         selectedPaymentMethod,
         selectedDate,
         selectedTime,
+        cardPaymentData,
         cartItems: getCartItems(),
         confirmButton,
         setInlineStatus,
@@ -1751,14 +1751,19 @@ function updateBookingSummary() {
 }
 
 function updatePaymentSummaryNote() {
-    getBookingFlow().updatePaymentSummaryNote();
+    getBookingFlow().updatePaymentSummaryNote(bookingPaymentOptions || {});
 }
 
 function updatePaymentOptionsForCurrentUser() {
-    getBookingFlow().updatePaymentOptions();
+    getBookingFlow().updatePaymentOptions(bookingPaymentOptions || {});
 }
 
-function goToPayment() {
+function getDepositAmount() {
+    const percentage = Number(bookingPaymentOptions?.depositPercentage || 50);
+    return Math.round(((getCartTotal() * percentage / 100) + Number.EPSILON) * 100) / 100;
+}
+
+async function goToPayment() {
     if (!selectedDate || !selectedTime) {
         setInlineStatus('booking-inline-status', 'Selecione uma data e um hor\u00e1rio para continuar.', 'error');
         return;
@@ -1771,6 +1776,16 @@ function goToPayment() {
     max.setDate(today.getDate() + 20);
 
     setInlineStatus('payment-inline-status', '');
+    setInlineStatus('booking-inline-status', 'Carregando formas de pagamento...', 'info');
+    try {
+        bookingPaymentOptions = await supabaseFetchBookingPaymentOptions();
+        setInlineStatus('booking-inline-status', '');
+    } catch (error) {
+        console.error('Erro ao carregar opcoes de pagamento:', error);
+        setInlineStatus('booking-inline-status', 'Nao foi possivel carregar as formas de pagamento. Tente novamente.', 'error');
+        return;
+    }
+
     getBookingFlow().preparePaymentPage({
         serviceNames: getCartServiceNames(),
         dateLabel: `${formatDate(selectedDate)} \u00e0s ${selectedTime}`,
@@ -1785,11 +1800,30 @@ function goToPayment() {
     showPage('page-payment');
 }
 
-function selectPaymentMethod(method) {
+async function selectPaymentMethod(method) {
+    if (method === 'cash' && !bookingPaymentOptions?.canPayAtAppointment) {
+        setInlineStatus('payment-inline-status', 'Pagamento no atendimento fica disponivel apos 1 servico concluido.', 'warning');
+        return;
+    }
+    if (method === 'card' && !bookingPaymentOptions?.mercadoPagoPublicKey) {
+        setInlineStatus('payment-inline-status', 'Pagamento por cartao ainda nao esta disponivel.', 'warning');
+        return;
+    }
+
     selectedPaymentMethod = method;
     setInlineStatus('payment-inline-status', '');
     getBookingFlow().applyPaymentMethodUi(method);
     updatePaymentSummaryNote();
+
+    if (method === 'card') {
+        getBookingPayment().initializeCardForm({
+            publicKey: bookingPaymentOptions?.mercadoPagoPublicKey,
+            amount: getDepositAmount(),
+            email: db.currentUser?.email || '',
+            maxInstallments: bookingPaymentOptions?.maxInstallments || 1,
+            onSubmit: cardData => confirmBooking(cardData)
+        });
+    }
 }
 
 async function copyPixKey() {
@@ -1838,10 +1872,6 @@ async function checkPixPaymentStatus() {
             getBookingPayment().updatePixStatus('Pagamento aprovado!', 'approved');
 
             const appointment = activePixCheckout.appointment;
-            const nextAppointmentsCount = (db.currentUser?.appointments_count || 0) + 1;
-            if (db.currentUser) {
-                db.currentUser = { ...db.currentUser, appointments_count: nextAppointmentsCount, type: 'Recorrente' };
-            }
             renderSuccess({
                 services: formatServiceNames(appointment.services_names).split(', '),
                 price: appointment.price,

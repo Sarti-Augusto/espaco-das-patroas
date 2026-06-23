@@ -128,6 +128,16 @@
             return data;
         },
 
+        async fetchBookingPaymentOptions() {
+            const client = getClient();
+            const { data, error } = await client.functions.invoke('get-booking-payment-options', {
+                body: {}
+            });
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            return data;
+        },
+
         async fetchPaymentByAppointment(appointmentId) {
             const client = getClient();
             const { data, error } = await client

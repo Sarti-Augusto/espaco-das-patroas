@@ -38,7 +38,7 @@ async function mercadoPagoRequest<T>(
   return payload as T;
 }
 
-export function createPixPayment(
+export function createMercadoPagoPayment(
   accessToken: string,
   idempotencyKey: string,
   payload: Record<string, unknown>
@@ -49,6 +49,8 @@ export function createPixPayment(
     body: JSON.stringify(payload)
   });
 }
+
+export const createPixPayment = createMercadoPagoPayment;
 
 export function getMercadoPagoPayment(
   accessToken: string,

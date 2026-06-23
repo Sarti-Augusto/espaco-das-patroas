@@ -42,7 +42,8 @@
     function formatPaymentMethod(method) {
         const map = {
             pix: 'PIX',
-            cash: 'Dinheiro',
+            card: 'Cartao',
+            cash: 'No atendimento',
             '50': '50% (Sinal)',
             'full': 'Antecipado',
             'store': 'Na Loja',
@@ -115,6 +116,96 @@
         status.classList.add(variant === 'approved' ? 'text-emerald-700' : variant === 'error' ? 'text-red-600' : 'text-amber-700');
     }
 
+    let activeCardForm = null;
+
+    function setCardStatus(message, variant = 'info') {
+        const status = document.getElementById('card-payment-status');
+        if (!status) return;
+        status.textContent = message || '';
+        status.classList.toggle('hidden', !message);
+        status.classList.remove('text-amber-700', 'text-emerald-700', 'text-red-600', 'text-[#50453b]');
+        status.classList.add(
+            variant === 'error' ? 'text-red-600' :
+            variant === 'approved' ? 'text-emerald-700' :
+            variant === 'warning' ? 'text-amber-700' :
+            'text-[#50453b]'
+        );
+    }
+
+    function initializeCardForm(options = {}) {
+        const {
+            publicKey,
+            amount,
+            email = '',
+            maxInstallments = 1,
+            onSubmit
+        } = options;
+
+        if (!publicKey || !window.MercadoPago) {
+            setCardStatus('Pagamento por cartao indisponivel no momento.', 'error');
+            return null;
+        }
+
+        if (activeCardForm?.unmount) {
+            activeCardForm.unmount();
+        }
+
+        const emailInput = document.getElementById('form-checkout__cardholderEmail');
+        if (emailInput && email && !emailInput.value) emailInput.value = email;
+
+        const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' });
+        activeCardForm = mp.cardForm({
+            amount: String(amount || 0),
+            iframe: true,
+            form: {
+                id: 'card-payment-form',
+                cardNumber: { id: 'form-checkout__cardNumber', placeholder: 'Numero do cartao' },
+                expirationDate: { id: 'form-checkout__expirationDate', placeholder: 'MM/AA' },
+                securityCode: { id: 'form-checkout__securityCode', placeholder: 'CVV' },
+                cardholderName: { id: 'form-checkout__cardholderName', placeholder: 'Nome impresso no cartao' },
+                issuer: { id: 'form-checkout__issuer', placeholder: 'Banco emissor' },
+                installments: { id: 'form-checkout__installments', placeholder: 'Parcelas' },
+                identificationType: { id: 'form-checkout__identificationType', placeholder: 'Tipo de documento' },
+                identificationNumber: { id: 'form-checkout__identificationNumber', placeholder: 'Numero do documento' },
+                cardholderEmail: { id: 'form-checkout__cardholderEmail', placeholder: 'E-mail' }
+            },
+            callbacks: {
+                onFormMounted: error => {
+                    if (error) {
+                        setCardStatus('Nao foi possivel carregar o formulario do cartao.', 'error');
+                        return;
+                    }
+                    setCardStatus('');
+                },
+                onSubmit: event => {
+                    event.preventDefault();
+                    const data = activeCardForm.getCardFormData();
+                    const installments = Math.min(Number(data.installments || 1), Number(maxInstallments || 1));
+                    if (!data.token || !data.paymentMethodId) {
+                        setCardStatus('Confira os dados do cartao para continuar.', 'error');
+                        return;
+                    }
+                    if (typeof onSubmit === 'function') {
+                        onSubmit({
+                            token: data.token,
+                            paymentMethodId: data.paymentMethodId,
+                            issuerId: data.issuerId,
+                            installments,
+                            identificationType: data.identificationType,
+                            identificationNumber: data.identificationNumber
+                        });
+                    }
+                },
+                onFetching: () => {
+                    setCardStatus('Validando dados do cartao...', 'info');
+                    return () => setCardStatus('');
+                }
+            }
+        });
+
+        return activeCardForm;
+    }
+
     window.bookingPayment = {
         copyTextToClipboard,
         copyPixKey,
@@ -122,6 +213,8 @@
         renderSuccess,
         renderPixCheckout,
         resetPixCheckoutUi,
-        updatePixStatus
+        updatePixStatus,
+        initializeCardForm,
+        setCardStatus
     };
 })();

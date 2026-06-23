@@ -5,6 +5,7 @@
             selectedPaymentMethod,
             selectedDate,
             selectedTime,
+            cardPaymentData = null,
             cartItems = [],
             confirmButton = null,
             setInlineStatus,
@@ -28,9 +29,14 @@
             return { ok: false, reason: 'missing-user' };
         }
 
-        if (!['pix', 'cash'].includes(selectedPaymentMethod)) {
-            setInlineStatus?.('payment-inline-status', 'Selecione PIX ou dinheiro para continuar.', 'error');
+        if (!['pix', 'card', 'cash'].includes(selectedPaymentMethod)) {
+            setInlineStatus?.('payment-inline-status', 'Selecione PIX, cartao ou pagamento no atendimento para continuar.', 'error');
             return { ok: false, reason: 'invalid-payment-method' };
+        }
+
+        if (selectedPaymentMethod === 'card' && !cardPaymentData?.token) {
+            setInlineStatus?.('payment-inline-status', 'Preencha os dados do cartao para continuar.', 'error');
+            return { ok: false, reason: 'missing-card-data' };
         }
 
             const totalPrice = cartItems.reduce((acc, item) => acc + (Number(item?.price) || 0), 0);
@@ -53,7 +59,8 @@
                 serviceIds,
                 appointmentDate: selectedDate,
                 appointmentTime: selectedTime,
-                method: selectedPaymentMethod
+                method: selectedPaymentMethod,
+                card: selectedPaymentMethod === 'card' ? cardPaymentData : undefined
             });
 
             if (checkout?.kind === 'pix') {
@@ -69,15 +76,18 @@
                 };
             }
 
+            if (checkout?.kind === 'card' && checkout?.outcome === 'rejected') {
+                setInlineStatus?.('payment-inline-status', 'Pagamento recusado. Confira os dados ou use outra forma.', 'error');
+                setButtonLoading?.(confirmButton, false);
+                return { ok: false, reason: 'card-rejected', payment: checkout.payment };
+            }
+
+            if (checkout?.kind === 'card' && checkout?.outcome === 'pending') {
+                setInlineStatus?.('payment-inline-status', 'Pagamento em analise. Acompanhe a confirmacao pelo aplicativo.', 'warning');
+            }
+
             const newAppointment = checkout?.appointment;
             if (!newAppointment) throw new Error('Agendamento nao retornado pelo servidor.');
-
-            const nextAppointmentsCount = (currentUser.appointments_count || 0) + 1;
-            const nextUser = {
-                ...currentUser,
-                appointments_count: nextAppointmentsCount,
-                type: 'Recorrente'
-            };
 
             resetBookingFlowState?.();
             renderSuccess?.({
@@ -96,7 +106,7 @@
             return {
                 ok: true,
                 appointment: newAppointment,
-                user: nextUser
+                user: currentUser
             };
         } catch (error) {
             console.error('Erro ao confirmar:', error);

@@ -20,6 +20,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
 
     <script>
         tailwind.config = {
@@ -443,6 +444,21 @@
                         </div>
                     </div>
 
+                    <div id="payment-card-container" class="hidden">
+                        <label for="payment-card" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('card')">
+                            <input id="payment-card" class="sr-only" name="payment" type="radio" value="card" onchange="selectPaymentMethod('card')"/>
+                            <div class="flex items-center justify-between w-full">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">credit_card</span></div>
+                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">Cartão de crédito</h4><p class="text-xs text-[#50453b]">Pague o sinal com segurança</p></div>
+                                </div>
+                                <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
+                                    <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+
                     <div id="payment-cash-container">
                     <label for="payment-cash" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('cash')">
                         <input id="payment-cash" class="sr-only" name="payment" type="radio" value="cash" onchange="selectPaymentMethod('cash')"/>
@@ -457,6 +473,30 @@
                         </div>
                     </label>
                     </div>
+                </section>
+
+                <section id="card-payment-panel" class="hidden mt-6 bg-white rounded-xl border border-[#d4c4b7]/30 p-5 shadow-sm">
+                    <form id="card-payment-form" class="space-y-4">
+                        <div id="form-checkout__cardNumber" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div id="form-checkout__expirationDate" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
+                            <div id="form-checkout__securityCode" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
+                        </div>
+                        <input id="form-checkout__cardholderName" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]" type="text" placeholder="Nome impresso no cartão" autocomplete="cc-name"/>
+                        <input id="form-checkout__cardholderEmail" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]" type="email" placeholder="E-mail" autocomplete="email"/>
+                        <div class="grid grid-cols-2 gap-3">
+                            <select id="form-checkout__issuer" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]"></select>
+                            <select id="form-checkout__installments" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]"></select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <select id="form-checkout__identificationType" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]"></select>
+                            <input id="form-checkout__identificationNumber" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]" type="text" placeholder="Documento"/>
+                        </div>
+                        <p id="card-payment-status" class="hidden text-sm font-medium" role="status" aria-live="polite"></p>
+                        <button id="confirm-card-booking-button" type="submit" class="hidden w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
+                            Pagar sinal e confirmar
+                        </button>
+                    </form>
                 </section>
 
                 <button id="confirm-booking-button" onclick="confirmBooking()" class="w-full mt-8 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
@@ -1036,11 +1076,11 @@
         </div>
     </div>
 
-    <script src="supabase-service.js?v=20260621-payments-1"></script>
-    <script src="booking-flow.js"></script>
+    <script src="supabase-service.js?v=20260622-card-1"></script>
+    <script src="booking-flow.js?v=20260622-card-1"></script>
     <script src="booking-schedule.js"></script>
-    <script src="booking-payment.js?v=20260621-payments-1"></script>
-    <script src="booking-confirmation.js?v=20260621-payments-1"></script>
-    <script src="app.js?v=20260621-payments-1"></script>
+    <script src="booking-payment.js?v=20260622-card-1"></script>
+    <script src="booking-confirmation.js?v=20260622-card-1"></script>
+    <script src="app.js?v=20260622-card-1"></script>
 </body>
 </html>

@@ -2,6 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { hasCompletedService } from '../_shared/booking-policy.ts';
 import { corsHeaders, errorMessage, jsonResponse, requireEnv } from '../_shared/http.ts';
 
+const MERCADO_PAGO_PUBLIC_KEY = 'APP_USR-2fc22a78-7803-4994-a085-5eca0da7775e';
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) });
   if (request.method !== 'POST') return jsonResponse(request, { error: 'Method not allowed' }, 405);
@@ -36,7 +38,7 @@ Deno.serve(async (request: Request) => {
       depositPercentage: Number(config.deposit_percentage || 50),
       pixExpirationMinutes: Number(config.pix_expiration_minutes || 15),
       maxInstallments: Number(config.max_installments || 1),
-      mercadoPagoPublicKey: Deno.env.get('MERCADO_PAGO_PUBLIC_KEY')?.trim() || null
+      mercadoPagoPublicKey: Deno.env.get('MERCADO_PAGO_PUBLIC_KEY')?.trim() || MERCADO_PAGO_PUBLIC_KEY
     });
   } catch (error) {
     console.error('get-booking-payment-options failed:', errorMessage(error));

@@ -24,7 +24,8 @@ notification by fetching the authoritative payment from Mercado Pago and
 matching its external reference to an internal payment.
 
 `MERCADO_PAGO_PUBLIC_KEY` is the production public key used by the browser SDK
-to tokenize card data. The access token must stay only in Supabase secrets.
+to tokenize card data. Because it is public by design, the options function has
+a production fallback for it. The access token must stay only in Supabase secrets.
 
 ### Deploy
 

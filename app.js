@@ -19,6 +19,7 @@ let db = {
     users: [],
     services: [],
     settings: { profileImg: "" },
+    paymentConfig: { deposit_percentage: 50, pix_expiration_minutes: 15, allow_cash: true, max_installments: 1 },
     appointmentsCache: [],
     scheduleConfig: { start: "09:00", end: "18:00", slotDuration: 3, availableDays: [1, 2, 3, 4, 5], blockedDates: [] },
     gallery: [], 
@@ -3307,6 +3308,97 @@ async function confirmDeleteService(id) {
 function renderAdminSettings() {
     const el = document.getElementById('admin-settings-photo');
     if (el) el.src = normalizeImageUrl(db.settings.profileImg || '') || PROFILE_IMAGE_FALLBACK;
+    loadAdminPaymentSettings();
+}
+
+function setPaymentSettingsStatus(message = '', type = 'info') {
+    const status = document.getElementById('payment-settings-status');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `mt-3 text-sm font-medium ${type === 'error' ? 'text-red-600' : 'text-stone-500'}`;
+    status.classList.toggle('hidden', !message);
+}
+
+function clampInstallments(value) {
+    const parsed = parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.min(12, Math.max(1, parsed));
+}
+
+function updateMaxInstallmentsPreview() {
+    const input = document.getElementById('admin-max-installments');
+    const preview = document.getElementById('admin-max-installments-preview');
+    if (!input) return;
+
+    const installments = clampInstallments(input.value);
+    input.value = installments;
+    if (preview) {
+        preview.textContent = installments === 1
+            ? '1 parcela'
+            : `Até ${installments} parcelas`;
+    }
+}
+
+async function loadAdminPaymentSettings() {
+    const input = document.getElementById('admin-max-installments');
+    if (!input) return;
+
+    try {
+        const config = await getSupabaseService().fetchPaymentConfig();
+        db.paymentConfig = {
+            deposit_percentage: Number(config.deposit_percentage) || 50,
+            pix_expiration_minutes: Number(config.pix_expiration_minutes) || 15,
+            allow_cash: Boolean(config.allow_cash),
+            max_installments: clampInstallments(config.max_installments)
+        };
+        input.value = db.paymentConfig.max_installments;
+        updateMaxInstallmentsPreview();
+        setPaymentSettingsStatus('');
+    } catch (error) {
+        console.error('Erro ao carregar configuracoes de pagamento:', error);
+        input.value = db.paymentConfig.max_installments || 1;
+        updateMaxInstallmentsPreview();
+        setPaymentSettingsStatus('Nao foi possivel carregar as configuracoes de pagamento.', 'error');
+    }
+}
+
+async function savePaymentSettings(button = null) {
+    const input = document.getElementById('admin-max-installments');
+    if (!input) return;
+
+    const previousText = button?.innerHTML;
+    const maxInstallments = clampInstallments(input.value);
+    input.value = maxInstallments;
+    updateMaxInstallmentsPreview();
+
+    try {
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span> Salvando';
+        }
+
+        const config = await getSupabaseService().updatePaymentConfig({
+            max_installments: maxInstallments
+        });
+
+        db.paymentConfig = {
+            deposit_percentage: Number(config.deposit_percentage) || db.paymentConfig.deposit_percentage,
+            pix_expiration_minutes: Number(config.pix_expiration_minutes) || db.paymentConfig.pix_expiration_minutes,
+            allow_cash: Boolean(config.allow_cash),
+            max_installments: clampInstallments(config.max_installments)
+        };
+        setPaymentSettingsStatus('Parcelamento atualizado.');
+        showToast('Parcelamento atualizado!');
+    } catch (error) {
+        console.error('Erro ao salvar configuracoes de pagamento:', error);
+        setPaymentSettingsStatus('Erro ao salvar o parcelamento.', 'error');
+        showToast('Erro ao salvar configuracao de pagamento.');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = previousText;
+        }
+    }
 }
 
 function handleProfileImageUpload(input) {
@@ -3445,6 +3537,9 @@ function openAddGalleryModal() {
     document.getElementById('gallery-modal').classList.remove('hidden');
     document.getElementById('gallery-modal').classList.add('flex');
 }
+
+window.updateMaxInstallmentsPreview = updateMaxInstallmentsPreview;
+window.savePaymentSettings = savePaymentSettings;
 
 function openEditGalleryModal(id) {
     const item = db.gallery.find(g => g.id == id);

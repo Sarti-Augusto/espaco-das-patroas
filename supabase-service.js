@@ -138,6 +138,31 @@
             return data;
         },
 
+        async fetchPaymentConfig() {
+            const client = getClient();
+            const { data, error } = await client
+                .from('payment_config')
+                .select('deposit_percentage, pix_expiration_minutes, allow_cash, max_installments')
+                .eq('id', true)
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+
+        async updatePaymentConfig(updates) {
+            const client = getClient();
+            const { data, error } = await client
+                .from('payment_config')
+                .update(updates)
+                .eq('id', true)
+                .select('deposit_percentage, pix_expiration_minutes, allow_cash, max_installments')
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+
         async fetchPaymentByAppointment(appointmentId) {
             const client = getClient();
             const { data, error } = await client

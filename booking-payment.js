@@ -118,6 +118,7 @@
 
     let activeCardForm = null;
     let mercadoPagoSdkPromise = null;
+    const MERCADO_PAGO_SDK_URL = 'https://sdk.mercadopago.com/js/v2';
 
     function setCardStatus(message, variant = 'info') {
         const status = document.getElementById('card-payment-status');
@@ -138,9 +139,11 @@
         if (mercadoPagoSdkPromise) return mercadoPagoSdkPromise;
 
         mercadoPagoSdkPromise = new Promise((resolve, reject) => {
-            const existingScript = document.querySelector('script[src="https://sdk.mercadopago.com/js/v2"]');
-            const script = existingScript || document.createElement('script');
+            document.querySelectorAll(`script[src^="${MERCADO_PAGO_SDK_URL}"]`).forEach(script => script.remove());
+
+            const script = document.createElement('script');
             const timeout = window.setTimeout(() => {
+                script.remove();
                 reject(new Error('Mercado Pago SDK load timeout'));
             }, 12000);
 
@@ -150,18 +153,20 @@
                     resolve(window.MercadoPago);
                     return;
                 }
+                script.remove();
                 reject(new Error('Mercado Pago SDK unavailable after load'));
             };
             script.onerror = () => {
                 window.clearTimeout(timeout);
+                script.remove();
                 reject(new Error('Mercado Pago SDK failed to load'));
             };
 
-            if (!existingScript) {
-                script.src = 'https://sdk.mercadopago.com/js/v2';
-                script.async = true;
-                document.head.appendChild(script);
-            }
+            script.src = `${MERCADO_PAGO_SDK_URL}?t=${Date.now()}`;
+            script.async = true;
+            script.crossOrigin = 'anonymous';
+            script.dataset.mercadoPagoSdk = 'true';
+            document.head.appendChild(script);
         }).catch(error => {
             mercadoPagoSdkPromise = null;
             throw error;

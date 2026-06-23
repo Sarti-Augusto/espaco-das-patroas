@@ -88,6 +88,8 @@
         .ios-bottom-nav { padding-bottom: max(0.75rem, var(--safe-bottom)); }
         .tap-target { min-height: 44px; min-width: 44px; }
         .mobile-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+        .card-iframe-field { position: relative; height: 56px; border: 1px solid rgba(80, 69, 59, 0.75); border-radius: 12px; background: #f7f3f2; overflow: hidden; }
+        .card-iframe-field iframe { width: 100% !important; height: 100% !important; border: 0 !important; display: block !important; }
         #admin-view table th { color: #7b6b61; background: #f5efeb; }
         #admin-view table tbody tr { border-bottom: 1px solid rgba(127, 83, 83, 0.08); }
 
@@ -476,10 +478,10 @@
 
                 <section id="card-payment-panel" class="hidden mt-6 bg-white rounded-xl border border-[#d4c4b7]/30 p-5 shadow-sm">
                     <form id="card-payment-form" class="space-y-4">
-                        <div id="form-checkout__cardNumber" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
+                        <div id="form-checkout__cardNumber" class="card-iframe-field"></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div id="form-checkout__expirationDate" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
-                            <div id="form-checkout__securityCode" class="h-12 rounded-xl bg-[#f7f3f2] px-4"></div>
+                            <div id="form-checkout__expirationDate" class="card-iframe-field"></div>
+                            <div id="form-checkout__securityCode" class="card-iframe-field"></div>
                         </div>
                         <input id="form-checkout__cardholderName" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]" type="text" placeholder="Nome impresso no cartão" autocomplete="cc-name"/>
                         <input id="form-checkout__cardholderEmail" class="w-full h-12 rounded-xl bg-[#f7f3f2] px-4 text-sm outline-none focus:ring-2 focus:ring-[#d59f9f]" type="email" placeholder="E-mail" autocomplete="email"/>
@@ -1078,7 +1080,7 @@
     <script src="supabase-service.js?v=20260622-card-1"></script>
     <script src="booking-flow.js?v=20260622-card-1"></script>
     <script src="booking-schedule.js"></script>
-    <script src="booking-payment.js?v=20260623-card-sdk-3"></script>
+    <script src="booking-payment.js?v=20260623-card-frame-1"></script>
     <script src="booking-confirmation.js?v=20260622-card-1"></script>
     <script src="app.js?v=20260623-card-sdk-2"></script>
 </body>

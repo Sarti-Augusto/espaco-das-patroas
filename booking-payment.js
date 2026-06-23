@@ -208,6 +208,11 @@
         return mercadoPagoSdkPromise;
     }
 
+    function cardSecureFramesMounted() {
+        return ['form-checkout__cardNumber', 'form-checkout__expirationDate', 'form-checkout__securityCode']
+            .every(id => Boolean(document.getElementById(id)?.querySelector('iframe')));
+    }
+
     async function initializeCardForm(options = {}) {
         const {
             publicKey,
@@ -261,7 +266,10 @@
                         setCardStatus('Nao foi possivel carregar o formulario do cartao.', 'error');
                         return;
                     }
-                    setCardStatus('');
+                    setCardStatus(cardSecureFramesMounted() ? '' : 'Carregando campos seguros do cartao...', 'info');
+                    window.setTimeout(() => {
+                        if (cardSecureFramesMounted()) setCardStatus('');
+                    }, 800);
                 },
                 onSubmit: event => {
                     event.preventDefault();

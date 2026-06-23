@@ -213,6 +213,60 @@
             .every(id => Boolean(document.getElementById(id)?.querySelector('iframe')));
     }
 
+    function normalizeMaxInstallments(value) {
+        const parsed = Math.floor(Number(value || 1));
+        return Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+    }
+
+    function getInstallmentOptionValue(option) {
+        const value = Math.floor(Number(option?.value || 0));
+        if (Number.isFinite(value) && value > 0) return value;
+
+        const textMatch = String(option?.textContent || '').match(/^\s*(\d+)/);
+        return textMatch ? Math.floor(Number(textMatch[1])) : 0;
+    }
+
+    function enforceInstallmentLimit(maxInstallments) {
+        const select = document.getElementById('form-checkout__installments');
+        if (!select) return;
+
+        const limit = normalizeMaxInstallments(maxInstallments);
+        const options = Array.from(select.options || []);
+        const current = Number(select.value || 0);
+        let removedSelectedOption = false;
+
+        options.forEach(option => {
+            const installments = getInstallmentOptionValue(option);
+            if (installments > limit) {
+                if (Number(option.value) === current) removedSelectedOption = true;
+                option.remove();
+            }
+        });
+
+        const firstValid = Array.from(select.options || []).find(option => getInstallmentOptionValue(option) > 0);
+        if ((!select.value || Number(select.value) > limit || removedSelectedOption) && firstValid) {
+            select.value = firstValid.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
+    function watchInstallments(maxInstallments) {
+        const select = document.getElementById('form-checkout__installments');
+        if (!select) return null;
+
+        let isFiltering = false;
+        const observer = new MutationObserver(() => {
+            if (isFiltering) return;
+            isFiltering = true;
+            enforceInstallmentLimit(maxInstallments);
+            isFiltering = false;
+        });
+
+        observer.observe(select, { childList: true });
+        enforceInstallmentLimit(maxInstallments);
+        return observer;
+    }
+
     async function initializeCardForm(options = {}) {
         const {
             publicKey,
@@ -244,6 +298,8 @@
         const emailInput = document.getElementById('form-checkout__cardholderEmail');
         if (emailInput && email && !emailInput.value) emailInput.value = email;
 
+        const installmentLimit = normalizeMaxInstallments(maxInstallments);
+        const installmentsObserver = watchInstallments(installmentLimit);
         const mp = new MercadoPagoSdk(publicKey, { locale: 'pt-BR' });
         activeCardForm = mp.cardForm({
             amount: String(amount || 0),
@@ -269,12 +325,14 @@
                     setCardStatus(cardSecureFramesMounted() ? '' : 'Carregando campos seguros do cartao...', 'info');
                     window.setTimeout(() => {
                         if (cardSecureFramesMounted()) setCardStatus('');
+                        enforceInstallmentLimit(installmentLimit);
                     }, 800);
                 },
                 onSubmit: event => {
                     event.preventDefault();
+                    enforceInstallmentLimit(installmentLimit);
                     const data = activeCardForm.getCardFormData();
-                    const installments = Math.min(Number(data.installments || 1), Number(maxInstallments || 1));
+                    const installments = Math.min(Number(data.installments || 1), installmentLimit);
                     if (!data.token || !data.paymentMethodId) {
                         setCardStatus('Confira os dados do cartao para continuar.', 'error');
                         return;
@@ -292,10 +350,21 @@
                 },
                 onFetching: () => {
                     setCardStatus('Validando dados do cartao...', 'info');
-                    return () => setCardStatus('');
+                    return () => {
+                        setCardStatus('');
+                        enforceInstallmentLimit(installmentLimit);
+                    };
                 }
             }
         });
+
+        const originalUnmount = activeCardForm?.unmount?.bind(activeCardForm);
+        if (originalUnmount) {
+            activeCardForm.unmount = () => {
+                installmentsObserver?.disconnect();
+                originalUnmount();
+            };
+        }
 
         return activeCardForm;
     }

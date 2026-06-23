@@ -1816,7 +1816,7 @@ async function selectPaymentMethod(method) {
     updatePaymentSummaryNote();
 
     if (method === 'card') {
-        getBookingPayment().initializeCardForm({
+        await getBookingPayment().initializeCardForm({
             publicKey: bookingPaymentOptions?.mercadoPagoPublicKey,
             amount: getDepositAmount(),
             email: db.currentUser?.email || '',

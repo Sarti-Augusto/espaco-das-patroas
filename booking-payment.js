@@ -117,6 +117,7 @@
     }
 
     let activeCardForm = null;
+    let mercadoPagoSdkPromise = null;
 
     function setCardStatus(message, variant = 'info') {
         const status = document.getElementById('card-payment-status');
@@ -132,7 +133,44 @@
         );
     }
 
-    function initializeCardForm(options = {}) {
+    function loadMercadoPagoSdk() {
+        if (window.MercadoPago) return Promise.resolve(window.MercadoPago);
+        if (mercadoPagoSdkPromise) return mercadoPagoSdkPromise;
+
+        mercadoPagoSdkPromise = new Promise((resolve, reject) => {
+            const existingScript = document.querySelector('script[src="https://sdk.mercadopago.com/js/v2"]');
+            const script = existingScript || document.createElement('script');
+            const timeout = window.setTimeout(() => {
+                reject(new Error('Mercado Pago SDK load timeout'));
+            }, 12000);
+
+            script.onload = () => {
+                window.clearTimeout(timeout);
+                if (window.MercadoPago) {
+                    resolve(window.MercadoPago);
+                    return;
+                }
+                reject(new Error('Mercado Pago SDK unavailable after load'));
+            };
+            script.onerror = () => {
+                window.clearTimeout(timeout);
+                reject(new Error('Mercado Pago SDK failed to load'));
+            };
+
+            if (!existingScript) {
+                script.src = 'https://sdk.mercadopago.com/js/v2';
+                script.async = true;
+                document.head.appendChild(script);
+            }
+        }).catch(error => {
+            mercadoPagoSdkPromise = null;
+            throw error;
+        });
+
+        return mercadoPagoSdkPromise;
+    }
+
+    async function initializeCardForm(options = {}) {
         const {
             publicKey,
             amount,
@@ -141,8 +179,18 @@
             onSubmit
         } = options;
 
-        if (!publicKey || !window.MercadoPago) {
+        if (!publicKey) {
             setCardStatus('Pagamento por cartao indisponivel no momento.', 'error');
+            return null;
+        }
+
+        let MercadoPagoSdk = null;
+        try {
+            setCardStatus('Carregando formulario do cartao...', 'info');
+            MercadoPagoSdk = await loadMercadoPagoSdk();
+        } catch (error) {
+            console.error('Mercado Pago SDK unavailable:', error);
+            setCardStatus('Nao foi possivel carregar o pagamento por cartao. Verifique sua conexao e tente novamente.', 'error');
             return null;
         }
 
@@ -153,7 +201,7 @@
         const emailInput = document.getElementById('form-checkout__cardholderEmail');
         if (emailInput && email && !emailInput.value) emailInput.value = email;
 
-        const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' });
+        const mp = new MercadoPagoSdk(publicKey, { locale: 'pt-BR' });
         activeCardForm = mp.cardForm({
             amount: String(amount || 0),
             iframe: true,

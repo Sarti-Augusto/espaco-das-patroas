@@ -2059,6 +2059,50 @@ function formatDate(dateStr) {
     return `${d}/${m}/${y}`;
 }
 
+function getPaymentDisplayInfo(appointment = {}) {
+    const rawStatus = String(appointment.payment_status || 'Pendente');
+    const normalizedStatus = rawStatus.toLowerCase();
+    const price = Number(appointment.price || 0);
+    const amountPaid = Number(appointment.amount_paid || 0);
+    const percentage = Number(appointment.payment_percentage || 0);
+    const isPaid = normalizedStatus === 'pago' || amountPaid > 0;
+    const isFullPayment = isPaid && (
+        percentage >= 100 ||
+        (price > 0 && amountPaid >= price - 0.01)
+    );
+
+    if (isFullPayment) {
+        return {
+            label: 'Pago integral',
+            color: 'bg-emerald-100 text-emerald-700',
+            detail: ''
+        };
+    }
+
+    if (isPaid) {
+        const partialPercentage = percentage > 0 && percentage < 100 ? Math.round(percentage) : null;
+        return {
+            label: partialPercentage ? `Sinal pago (${partialPercentage}%)` : 'Sinal pago',
+            color: 'bg-emerald-100 text-emerald-700',
+            detail: amountPaid > 0 ? `Pago: ${formatCurrency(amountPaid)}` : ''
+        };
+    }
+
+    const statusColors = {
+        pendente: 'bg-amber-100 text-amber-700',
+        expirado: 'bg-red-100 text-red-600',
+        recusado: 'bg-red-100 text-red-600',
+        reembolsado: 'bg-gray-100 text-gray-600',
+        contestado: 'bg-red-100 text-red-600'
+    };
+
+    return {
+        label: rawStatus,
+        color: statusColors[normalizedStatus] || 'bg-amber-100 text-amber-700',
+        detail: ''
+    };
+}
+
 // ==========================================
 // MY APPOINTMENTS
 // ==========================================
@@ -2097,7 +2141,7 @@ async function renderMyAppointments() {
                 'Cancelado': 'bg-red-100 text-red-600'
             };
             const statusColor = statusColors[app.status] || 'bg-gray-100 text-gray-600';
-            const paymentColor = app.payment_status === 'Pago' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+            const paymentInfo = getPaymentDisplayInfo(app);
             const serviceNames = formatServiceNames(app.services_names);
             const appointmentTime = formatAppointmentTime(app.appointment_time);
 
@@ -2112,7 +2156,8 @@ async function renderMyAppointments() {
                     </div>
                     <div class="pt-3 border-t border-[#d4c4b7]/10">
                         <p class="text-xs text-[#50453b]">Valor: <span class="font-bold text-[#7f5353]">${formatCurrency(app.price)}</span></p>
-                        <p class="text-[10px] ${paymentColor} mt-1 px-2 py-0.5 rounded-full inline-block">Pagamento: ${app.payment_status}</p>
+                        <p class="text-[10px] ${paymentInfo.color} mt-1 px-2 py-0.5 rounded-full inline-block">Pagamento: ${paymentInfo.label}</p>
+                        ${paymentInfo.detail ? `<p class="text-[10px] text-[#50453b] mt-1">${paymentInfo.detail}</p>` : ''}
                     </div>
                 </div>`;
         }).join('');
@@ -2235,7 +2280,7 @@ async function showNextAppointmentDetails() {
                              `ðŸ’… ServiÃ§o: ${formatServiceNames(app.services_names)}\n` +
                              `ðŸ•’ Data: ${dataFormatada} Ã s ${app.appointment_time}\n` +
                              `ðŸ’° Valor: ${formatCurrency(app.price)}\n` +
-                             `ðŸ’³ Pagamento: ${app.payment_status}`;
+                             `ðŸ’³ Pagamento: ${getPaymentDisplayInfo(app).label}`;
             
             alert(detalhes);
         } else {

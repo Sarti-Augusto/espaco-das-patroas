@@ -3,6 +3,7 @@
         const {
             currentUser,
             selectedPaymentMethod,
+            paymentAmountMode = 'deposit',
             selectedDate,
             selectedTime,
             cardPaymentData = null,
@@ -60,6 +61,7 @@
                 appointmentDate: selectedDate,
                 appointmentTime: selectedTime,
                 method: selectedPaymentMethod,
+                paymentAmountMode: paymentAmountMode === 'full' ? 'full' : 'deposit',
                 card: selectedPaymentMethod === 'card' ? cardPaymentData : undefined
             });
 

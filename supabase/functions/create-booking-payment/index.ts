@@ -8,6 +8,7 @@ type CheckoutRequest = {
   appointmentDate?: string;
   appointmentTime?: string;
   method?: 'pix' | 'card' | 'cash';
+  paymentAmountMode?: 'deposit' | 'full';
   card?: {
     token?: string;
     paymentMethodId?: string;
@@ -59,6 +60,7 @@ Deno.serve(async (request: Request) => {
     const appointmentDate = String(body.appointmentDate || '');
     const appointmentTime = String(body.appointmentTime || '').slice(0, 5);
     const method = body.method;
+    const paymentAmountMode = body.paymentAmountMode === 'full' ? 'full' : 'deposit';
 
     if (!serviceIds.length || serviceIds.length > 10 || serviceIds.some(id => !isUuid(id))) {
       return jsonResponse(request, { error: 'Invalid services' }, 400);
@@ -98,7 +100,10 @@ Deno.serve(async (request: Request) => {
     const totalAmount = toMoney(services.reduce((sum, service) => sum + Number(service.price || 0), 0));
     const depositPercentage = Number(config.deposit_percentage || 50);
     const requiresOnlinePayment = method === 'pix' || method === 'card';
-    const amountDue = requiresOnlinePayment ? toMoney(totalAmount * depositPercentage / 100) : totalAmount;
+    const paymentPercentage = requiresOnlinePayment
+      ? (paymentAmountMode === 'full' ? 100 : depositPercentage)
+      : 100;
+    const amountDue = requiresOnlinePayment ? toMoney(totalAmount * paymentPercentage / 100) : totalAmount;
     const expiresAt = requiresOnlinePayment
       ? new Date(Date.now() + Number(config.pix_expiration_minutes || 15) * 60_000).toISOString()
       : null;
@@ -124,7 +129,7 @@ Deno.serve(async (request: Request) => {
       confirmed_at: method === 'cash' ? new Date().toISOString() : null,
       amount_due: amountDue,
       amount_paid: 0,
-      payment_percentage: requiresOnlinePayment ? depositPercentage : 100
+      payment_percentage: paymentPercentage
     }).select().single();
 
     if (appointmentError) {
@@ -165,7 +170,7 @@ Deno.serve(async (request: Request) => {
     const accessToken = requireEnv('MERCADO_PAGO_ACCESS_TOKEN');
     const providerPayload: Record<string, unknown> = {
       transaction_amount: amountDue,
-      description: ('Sinal Espaco das Patroas - ' + services.map(service => service.name).join(', ')).slice(0, 250),
+      description: ((paymentPercentage >= 100 ? 'Pagamento integral' : 'Sinal') + ' Espaco das Patroas - ' + services.map(service => service.name).join(', ')).slice(0, 250),
       payment_method_id: method === 'pix' ? 'pix' : card.paymentMethodId,
       external_reference: paymentId,
       notification_url: supabaseUrl + '/functions/v1/mercado-pago-webhook',

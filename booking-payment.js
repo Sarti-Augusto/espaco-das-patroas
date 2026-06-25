@@ -79,7 +79,7 @@
     }
 
     function renderPixCheckout(options) {
-        const { payment, formatCurrency } = options || {};
+        const { payment, appointment, formatCurrency } = options || {};
         if (!payment) return;
 
         const panel = document.getElementById('pix-checkout-panel');
@@ -88,7 +88,10 @@
         const qrImage = document.getElementById('pix-qr-image');
         const copyCode = document.getElementById('pix-copy-code');
         const amount = document.getElementById('pix-payment-amount');
+        const title = document.getElementById('pix-payment-title');
         const status = document.getElementById('pix-payment-status');
+        const percentage = Number(appointment?.payment_percentage || payment.appointments?.payment_percentage || payment.payment_percentage || 0);
+        const isFullPayment = percentage >= 100;
 
         panel?.classList.remove('hidden');
         methods?.classList.add('hidden');
@@ -96,6 +99,7 @@
         if (qrImage && payment.qr_code_base64) qrImage.src = `data:image/png;base64,${payment.qr_code_base64}`;
         if (copyCode) copyCode.value = payment.qr_code || '';
         if (amount) amount.textContent = typeof formatCurrency === 'function' ? formatCurrency(payment.amount) : String(payment.amount);
+        if (title) title.textContent = isFullPayment ? 'Pague o valor integral via PIX' : 'Pague o sinal via PIX';
         if (status) status.textContent = 'Aguardando pagamento...';
     }
 

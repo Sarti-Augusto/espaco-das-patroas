@@ -36,6 +36,7 @@ let lastAuthErrorMessage = '';
 let selectedServiceImageFile = null;
 let selectedGalleryImageFile = null;
 let selectedClientProfileImageFile = null;
+let selectedPaymentAmountMode = 'deposit';
 
 function getSupabaseService() {
     if (window.supabaseService) {
@@ -874,6 +875,7 @@ function resetBookingSelection() {
 }
 
 function resetBookingFlowState() {
+    selectedPaymentAmountMode = 'deposit';
     return getBookingFlow().resetAll();
 }
 
@@ -1680,6 +1682,7 @@ async function confirmBooking(cardPaymentData = null) {
     const result = await getBookingConfirmation().confirmBookingFlow({
         currentUser: db.currentUser,
         selectedPaymentMethod,
+        paymentAmountMode: selectedPaymentAmountMode,
         selectedDate,
         selectedTime,
         cardPaymentData,
@@ -1752,7 +1755,10 @@ function updateBookingSummary() {
 }
 
 function updatePaymentSummaryNote() {
-    getBookingFlow().updatePaymentSummaryNote(bookingPaymentOptions || {});
+    getBookingFlow().updatePaymentSummaryNote({
+        ...(bookingPaymentOptions || {}),
+        paymentAmountMode: selectedPaymentAmountMode
+    });
 }
 
 function updatePaymentOptionsForCurrentUser() {
@@ -1762,6 +1768,63 @@ function updatePaymentOptionsForCurrentUser() {
 function getDepositAmount() {
     const percentage = Number(bookingPaymentOptions?.depositPercentage || 50);
     return Math.round(((getCartTotal() * percentage / 100) + Number.EPSILON) * 100) / 100;
+}
+
+function getOnlinePaymentAmount() {
+    return selectedPaymentAmountMode === 'full' ? getCartTotal() : getDepositAmount();
+}
+
+function updatePaymentAmountModeUi() {
+    const requiresDeposit = bookingPaymentOptions?.requiresDeposit !== false;
+    const section = document.getElementById('payment-amount-section');
+    const depositInput = document.getElementById('payment-amount-deposit');
+    const fullInput = document.getElementById('payment-amount-full');
+    const depositLabel = document.getElementById('payment-deposit-label');
+    const fullLabel = document.getElementById('payment-full-label');
+    const pixInfo = document.getElementById('payment-pix-info-text');
+    const cardSubtitle = document.getElementById('payment-card-subtitle');
+    const cardButton = document.getElementById('confirm-card-booking-button');
+
+    selectedPaymentAmountMode = selectedPaymentAmountMode === 'full' ? 'full' : 'deposit';
+    if (!requiresDeposit) selectedPaymentAmountMode = 'deposit';
+
+    section?.classList.toggle('hidden', !requiresDeposit);
+    if (depositInput) depositInput.checked = selectedPaymentAmountMode === 'deposit';
+    if (fullInput) fullInput.checked = selectedPaymentAmountMode === 'full';
+
+    const depositPercentage = Number(bookingPaymentOptions?.depositPercentage || 50);
+    const depositAmount = getDepositAmount();
+    const fullAmount = getCartTotal();
+    if (depositLabel) depositLabel.textContent = `${depositPercentage}% - ${formatCurrency(depositAmount)}`;
+    if (fullLabel) fullLabel.textContent = `100% - ${formatCurrency(fullAmount)}`;
+
+    const amountLabel = selectedPaymentAmountMode === 'full'
+        ? `o valor integral de ${formatCurrency(fullAmount)}`
+        : `o sinal de ${formatCurrency(depositAmount)}`;
+    if (pixInfo) pixInfo.textContent = `Sera gerado um PIX para pagar ${amountLabel} e reservar o horario por 15 minutos.`;
+    if (cardSubtitle) cardSubtitle.textContent = selectedPaymentAmountMode === 'full'
+        ? 'Pague integral com seguranca'
+        : 'Pague o sinal com seguranca';
+    if (cardButton) cardButton.textContent = selectedPaymentAmountMode === 'full'
+        ? 'Pagar integral e confirmar'
+        : 'Pagar sinal e confirmar';
+
+    updatePaymentSummaryNote();
+}
+
+async function selectPaymentAmountMode(mode) {
+    selectedPaymentAmountMode = mode === 'full' ? 'full' : 'deposit';
+    updatePaymentAmountModeUi();
+
+    if (selectedPaymentMethod === 'card') {
+        await getBookingPayment().initializeCardForm({
+            publicKey: bookingPaymentOptions?.mercadoPagoPublicKey,
+            amount: getOnlinePaymentAmount(),
+            email: db.currentUser?.email || '',
+            maxInstallments: bookingPaymentOptions?.maxInstallments || 1,
+            onSubmit: cardData => confirmBooking(cardData)
+        });
+    }
 }
 
 async function goToPayment() {
@@ -1795,6 +1858,8 @@ async function goToPayment() {
         maxDate: toDateInputValue(max)
     });
 
+    selectedPaymentAmountMode = 'deposit';
+    updatePaymentAmountModeUi();
     updatePaymentOptionsForCurrentUser();
     updateBookingProgress('payment');
     updatePaymentSummaryNote();
@@ -1819,7 +1884,7 @@ async function selectPaymentMethod(method) {
     if (method === 'card') {
         await getBookingPayment().initializeCardForm({
             publicKey: bookingPaymentOptions?.mercadoPagoPublicKey,
-            amount: getDepositAmount(),
+            amount: getOnlinePaymentAmount(),
             email: db.currentUser?.email || '',
             maxInstallments: bookingPaymentOptions?.maxInstallments || 1,
             onSubmit: cardData => confirmBooking(cardData)
@@ -1906,7 +1971,7 @@ function startPixCheckout(result) {
         services: result.services || []
     };
     sessionStorage.setItem('espacoPatroas_activePix', JSON.stringify(activePixCheckout));
-    getBookingPayment().renderPixCheckout({ payment: result.payment, formatCurrency });
+    getBookingPayment().renderPixCheckout({ payment: result.payment, appointment: result.appointment, formatCurrency });
     stopPixTracking();
     updatePixCountdown();
     pixCountdownInterval = window.setInterval(updatePixCountdown, 1000);
@@ -1933,6 +1998,7 @@ function resetPixCheckout() {
 
 window.copyGeneratedPixCode = copyGeneratedPixCode;
 window.resetPixCheckout = resetPixCheckout;
+window.selectPaymentAmountMode = selectPaymentAmountMode;
 
 function renderSuccess(app) {
     return getBookingPayment().renderSuccess({

@@ -430,6 +430,26 @@
                     <p id="payment-summary-note" class="text-sm text-[#50453b] mt-3">Escolha a forma de pagamento para concluir o agendamento.</p>
                 </div>
 
+                <section id="payment-amount-section" class="hidden mb-6 space-y-3">
+                    <h3 class="font-headline font-bold text-lg text-[#1c1b1b]">Valor do pagamento</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <label for="payment-amount-deposit" class="flex items-center justify-between p-4 rounded-xl bg-white border border-[#d4c4b7]/35 cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]">
+                            <div>
+                                <p class="font-headline font-bold text-[#1c1b1b]">Pagar sinal</p>
+                                <p id="payment-deposit-label" class="text-xs text-[#50453b] mt-1">50% do valor</p>
+                            </div>
+                            <input id="payment-amount-deposit" class="text-[#7f5353] focus:ring-[#7f5353]" name="paymentAmountMode" type="radio" value="deposit" onchange="selectPaymentAmountMode('deposit')"/>
+                        </label>
+                        <label for="payment-amount-full" class="flex items-center justify-between p-4 rounded-xl bg-white border border-[#d4c4b7]/35 cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]">
+                            <div>
+                                <p class="font-headline font-bold text-[#1c1b1b]">Pagar integral</p>
+                                <p id="payment-full-label" class="text-xs text-[#50453b] mt-1">100% do valor</p>
+                            </div>
+                            <input id="payment-amount-full" class="text-[#7f5353] focus:ring-[#7f5353]" name="paymentAmountMode" type="radio" value="full" onchange="selectPaymentAmountMode('full')"/>
+                        </label>
+                    </div>
+                </section>
+
                 <section id="payment-methods-section" class="space-y-4">
                     <div id="payment-pix-container">
                         <label for="payment-pix" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('pix')">
@@ -445,7 +465,7 @@
                             </div>
                         </label>
                         <div id="payment-pix-info" class="hidden mt-2 bg-[#f7f3f2] rounded-xl p-5 border-l-4 border-[#7f5353] space-y-3">
-                            <p class="text-sm text-[#50453b]">Será gerado um PIX de 50% do valor para reservar o horário por 15 minutos.</p>
+                            <p id="payment-pix-info-text" class="text-sm text-[#50453b]">Será gerado um PIX para reservar o horário por 15 minutos.</p>
                         </div>
                     </div>
 
@@ -453,9 +473,9 @@
                         <label for="payment-card" class="flex items-center p-5 rounded-xl bg-white border-b-2 border-transparent cursor-pointer transition-all has-[:checked]:border-[#7f5353] has-[:checked]:bg-[#f1edec]" onclick="selectPaymentMethod('card')">
                             <input id="payment-card" class="sr-only" name="payment" type="radio" value="card" onchange="selectPaymentMethod('card')"/>
                             <div class="flex items-center justify-between w-full">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">credit_card</span></div>
-                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">Cartão de crédito</h4><p class="text-xs text-[#50453b]">Pague o sinal com segurança</p></div>
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full bg-[#d59f9f]/10 flex items-center justify-center text-[#7f5353]"><span class="material-symbols-outlined">credit_card</span></div>
+                                    <div><h4 class="font-headline font-bold text-[#1c1b1b]">Cartão de crédito</h4><p id="payment-card-subtitle" class="text-xs text-[#50453b]">Pague com segurança</p></div>
                                 </div>
                                 <div class="w-5 h-5 rounded-full border-2 border-[#82756a] flex items-center justify-center has-[:checked]:border-[#7f5353]">
                                     <div class="w-2.5 h-2.5 rounded-full bg-[#7f5353] scale-0 has-[:checked]:scale-100 transition-transform"></div>
@@ -508,7 +528,7 @@
                         </div>
                         <p id="card-payment-status" class="hidden text-sm font-medium" role="status" aria-live="polite"></p>
                         <button id="confirm-card-booking-button" type="submit" class="hidden w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">
-                            Pagar sinal e confirmar
+                            Pagar e confirmar
                         </button>
                     </form>
                 </section>
@@ -521,7 +541,7 @@
                     <div class="w-12 h-12 mx-auto rounded-full bg-[#d59f9f]/10 text-[#7f5353] flex items-center justify-center">
                         <span class="material-symbols-outlined">qr_code_2</span>
                     </div>
-                    <h3 class="font-headline font-bold text-xl text-[#1c1b1b] mt-4">Pague o sinal via PIX</h3>
+                    <h3 id="pix-payment-title" class="font-headline font-bold text-xl text-[#1c1b1b] mt-4">Pague via PIX</h3>
                     <p id="pix-payment-amount" class="text-2xl font-extrabold text-[#7f5353] mt-2">R$ 0,00</p>
                     <p id="pix-payment-countdown" class="text-sm text-stone-500 mt-1">Expira em 15:00</p>
                     <img id="pix-qr-image" class="w-56 h-56 object-contain mx-auto my-5 rounded-xl border border-[#d4c4b7]/20" alt="QR Code PIX">
@@ -1109,10 +1129,10 @@
     </div>
 
     <script src="supabase-service.js?v=20260623-card-admin-1"></script>
-    <script src="booking-flow.js?v=20260622-card-1"></script>
+    <script src="booking-flow.js?v=20260625-full-payment-1"></script>
     <script src="booking-schedule.js"></script>
-    <script src="booking-payment.js?v=20260623-installments-limit-1"></script>
-    <script src="booking-confirmation.js?v=20260622-card-1"></script>
-    <script src="app.js?v=20260623-card-admin-1"></script>
+    <script src="booking-payment.js?v=20260625-full-payment-1"></script>
+    <script src="booking-confirmation.js?v=20260625-full-payment-1"></script>
+    <script src="app.js?v=20260625-full-payment-1"></script>
 </body>
 </html>

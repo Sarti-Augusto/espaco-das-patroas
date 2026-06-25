@@ -63,17 +63,19 @@
 
         const depositPercentage = Number(options.depositPercentage || 50);
         const requiresDeposit = options.requiresDeposit !== false;
+        const paymentAmountMode = options.paymentAmountMode === 'full' ? 'full' : 'deposit';
+        const amountLabel = paymentAmountMode === 'full' ? 'o valor integral' : `${depositPercentage}%`;
 
         if (!state.selectedPaymentMethod) {
             noteElement.textContent = requiresDeposit
-                ? `Escolha PIX ou cartao para pagar ${depositPercentage}% e reservar o horario.`
+                ? `Escolha pagar ${depositPercentage}% ou o valor integral para reservar o horario.`
                 : 'Cliente recorrente: escolha como deseja confirmar o agendamento.';
             return;
         }
 
         const notes = {
-            pix: `Pagamento via PIX de ${depositPercentage}% para reservar o horario.`,
-            card: `Pagamento no cartao de ${depositPercentage}% para confirmar o agendamento.`,
+            pix: `Pagamento via PIX de ${amountLabel} para reservar o horario.`,
+            card: `Pagamento no cartao de ${amountLabel} para confirmar o agendamento.`,
             cash: 'Pagamento presencial liberado para cliente recorrente.'
         };
 

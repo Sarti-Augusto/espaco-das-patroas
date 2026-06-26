@@ -138,6 +138,15 @@
             return data;
         },
 
+        async resolveLoginEmail(identifier) {
+            const client = getClient();
+            const { data, error } = await client.rpc('resolve_login_email', {
+                login_identifier: identifier
+            });
+            if (error) throw error;
+            return data || '';
+        },
+
         async fetchPaymentConfig() {
             const client = getClient();
             const { data, error } = await client

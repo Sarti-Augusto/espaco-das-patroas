@@ -539,8 +539,124 @@ async function processInitialAuth() {
     return routed;
 }
 
-async function handleEmailAuth(email, role) {
-    showToast('Login por e-mail desativado. Use Entrar com Gmail.');
+function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function normalizeLoginIdentifier(value) {
+    const raw = String(value || '').trim();
+    return raw.includes('@') ? raw.toLowerCase() : raw.replace(/\D/g, '');
+}
+
+async function resolveAuthEmail(identifier) {
+    const normalized = normalizeLoginIdentifier(identifier);
+    if (!normalized) return '';
+    if (normalized.includes('@')) return normalized;
+    return getSupabaseService().resolveLoginEmail(normalized);
+}
+
+async function completePasswordAuth(role, sessionUser = null) {
+    const expectedRole = role === 'admin' ? 'admin' : 'client';
+    pendingLoginRole = expectedRole;
+    localStorage.setItem('espacoPatroas_pendingLoginRole', expectedRole);
+
+    await ensureAuthenticatedProfile({
+        includeProtectedData: expectedRole === 'admin',
+        sessionUser
+    });
+
+    const routed = checkAutoLogin();
+    if (routed && expectedRole !== 'admin') warmProtectedDataForCurrentUser();
+    return routed;
+}
+
+async function handlePasswordLogin(role = 'client', button = null) {
+    const identifierInput = document.getElementById(role === 'admin' ? 'admin-auth-email' : 'input-auth-identifier');
+    const passwordInput = document.getElementById(role === 'admin' ? 'admin-auth-password' : 'input-auth-password');
+    const identifier = identifierInput?.value.trim() || '';
+    const password = passwordInput?.value || '';
+
+    setFieldError(identifierInput?.id, !identifier);
+    setFieldError(passwordInput?.id, password.length < 6);
+
+    if (!identifier || password.length < 6) {
+        setAuthStatus(button, 'Informe e-mail/telefone e senha.');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true, 'Entrando...');
+        setAuthStatus(button, 'Verificando acesso...');
+        const email = await resolveAuthEmail(identifier);
+        if (!email) throw new Error('Credenciais invalidas.');
+
+        pendingLoginRole = role;
+        localStorage.setItem('espacoPatroas_pendingLoginRole', role);
+        const { data, error } = await withTimeout(window.supabase.auth.signInWithPassword({
+            email,
+            password
+        }), 12000);
+        if (error) throw error;
+
+        await completePasswordAuth(role, data?.user);
+        setAuthStatus(button, '');
+    } catch (error) {
+        console.error('Erro no login por senha:', error);
+        setAuthStatus(button, 'Nao foi possivel entrar. Confira os dados.');
+        showToast('Nao foi possivel entrar. Confira e-mail/telefone e senha.');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function handlePasswordSignUp(button = null) {
+    const emailInput = document.getElementById('input-auth-identifier');
+    const passwordInput = document.getElementById('input-auth-password');
+    const email = normalizeLoginIdentifier(emailInput?.value || '');
+    const password = passwordInput?.value || '';
+
+    setFieldError('input-auth-identifier', !isValidEmail(email));
+    setFieldError('input-auth-password', password.length < 6);
+
+    if (!isValidEmail(email)) {
+        setAuthStatus(button, 'Para criar conta com senha, informe um e-mail valido.');
+        return;
+    }
+    if (password.length < 6) {
+        setAuthStatus(button, 'A senha precisa ter pelo menos 6 caracteres.');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true, 'Criando...');
+        setAuthStatus(button, 'Criando sua conta...');
+        pendingLoginRole = 'client';
+        localStorage.setItem('espacoPatroas_pendingLoginRole', 'client');
+
+        const { data, error } = await withTimeout(window.supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                emailRedirectTo: getRedirectUrl('client')
+            }
+        }), 12000);
+        if (error) throw error;
+
+        if (data?.session?.user) {
+            await completePasswordAuth('client', data.user);
+            setAuthStatus(button, '');
+            return;
+        }
+
+        setAuthStatus(button, 'Conta criada. Verifique seu e-mail para confirmar o acesso.');
+        showToast('Conta criada. Verifique seu e-mail para confirmar o acesso.');
+    } catch (error) {
+        console.error('Erro ao criar conta por senha:', error);
+        setAuthStatus(button, error.message || 'Nao foi possivel criar a conta.');
+        showToast(error.message || 'Nao foi possivel criar a conta.');
+    } finally {
+        setButtonLoading(button, false);
+    }
 }
 
 function setButtonLoading(button, isLoading, loadingText = 'Aguarde...') {
@@ -637,12 +753,16 @@ async function handleGoogleLogin(role = 'client', button = null) {
 }
 
 async function handleAdminEmailLogin(button = null) {
-    showToast('Login por e-mail desativado. Use Entrar com Gmail.');
+    return handlePasswordLogin('admin', button);
+}
+
+async function handleAdminPasswordLogin(button = null) {
+    return handlePasswordLogin('admin', button);
 }
 
 async function supabaseUpdateUser(userId, updates) {
     const isOwnProfile = db.currentUser?.id === userId;
-    const ownProfileFields = ['name', 'phone', 'profile_image_url'];
+    const ownProfileFields = ['name', 'email', 'phone', 'profile_image_url'];
     const updateKeys = Object.keys(updates || {});
 
     if (!db.isAdmin && (!isOwnProfile || updateKeys.some(key => !ownProfileFields.includes(key)))) {
@@ -1244,6 +1364,8 @@ function showLoginStep1(email) {
     document.getElementById('login-form-step2')?.classList.add('hidden');
     setAuthStatus(null, '');
     setInlineStatus('login-inline-status', '');
+    setFieldError('input-auth-identifier', false);
+    setFieldError('input-auth-password', false);
     setFieldError('input-login-name', false);
     setFieldError('input-login-phone', false);
 }
@@ -1314,16 +1436,19 @@ function openClientProfileModal() {
     selectedClientProfileImageFile = null;
     const modal = document.getElementById('client-profile-modal');
     const nameInput = document.getElementById('client-profile-name');
+    const emailInput = document.getElementById('client-profile-email');
     const phoneInput = document.getElementById('client-profile-phone');
     const preview = document.getElementById('client-profile-preview');
     const fileInput = document.getElementById('client-profile-avatar-input');
 
     if (nameInput) nameInput.value = db.currentUser.name || '';
+    if (emailInput) emailInput.value = db.currentUser.email || '';
     if (phoneInput) phoneInput.value = db.currentUser.phone || '';
     if (preview) preview.src = getClientAvatarUrl();
     if (fileInput) fileInput.value = '';
     setInlineStatus('client-profile-status', '');
     setFieldError('client-profile-name', false);
+    setFieldError('client-profile-email', false);
     setFieldError('client-profile-phone', false);
 
     modal?.classList.remove('hidden');
@@ -1363,15 +1488,18 @@ async function saveClientProfile(button = null) {
     }
 
     const nameInput = document.getElementById('client-profile-name');
+    const emailInput = document.getElementById('client-profile-email');
     const phoneInput = document.getElementById('client-profile-phone');
     const name = sanitizeString(nameInput?.value.trim() || '');
+    const email = (emailInput?.value || '').trim().toLowerCase();
     const phone = (phoneInput?.value || '').replace(/\D/g, '');
 
     setFieldError('client-profile-name', !name);
+    setFieldError('client-profile-email', !isValidEmail(email));
     setFieldError('client-profile-phone', !phone || phone.length < 10);
 
-    if (!name || !phone) {
-        setInlineStatus('client-profile-status', 'Preencha nome e WhatsApp para salvar.', 'error');
+    if (!name || !isValidEmail(email) || !phone) {
+        setInlineStatus('client-profile-status', 'Preencha nome, e-mail e WhatsApp para salvar.', 'error');
         return;
     }
 
@@ -1390,8 +1518,15 @@ async function saveClientProfile(button = null) {
             profileImageUrl = await uploadImageFile(selectedClientProfileImageFile, 'avatars', db.currentUser.id);
         }
 
+        if (email !== String(db.currentUser.email || '').toLowerCase()) {
+            setInlineStatus('client-profile-status', 'Atualizando e-mail...', 'info');
+            const { error: authEmailError } = await window.supabase.auth.updateUser({ email });
+            if (authEmailError) throw authEmailError;
+        }
+
         const user = await supabaseUpdateUser(db.currentUser.id, {
             name,
+            email,
             phone,
             profile_image_url: profileImageUrl
         });

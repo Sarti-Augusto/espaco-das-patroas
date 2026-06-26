@@ -264,10 +264,31 @@
 
                 <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
                     <div id="auth-debug-panel" class="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
-                    <form onsubmit="event.preventDefault(); handleGoogleLogin('client', this.querySelector('button[type=submit]'));" id="login-form-step1" class="flex flex-col gap-6">
-                        <button type="submit" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
+                    <form onsubmit="event.preventDefault(); handlePasswordLogin('client', this.querySelector('[data-password-login]'));" id="login-form-step1" class="flex flex-col gap-5">
+                        <button type="button" onclick="handleGoogleLogin('client', this)" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
                             Entrar com Gmail
                         </button>
+                        <div class="flex items-center gap-3">
+                            <span class="h-px flex-1 bg-[#d4c4b7]"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-stone-400">ou</span>
+                            <span class="h-px flex-1 bg-[#d4c4b7]"></span>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">E-mail ou telefone</label>
+                                <input id="input-auth-identifier" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" autocomplete="username" placeholder="email@exemplo.com ou WhatsApp"/>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Senha</label>
+                                <input id="input-auth-password" type="password" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" autocomplete="current-password" placeholder="Sua senha"/>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3">
+                            <button type="submit" data-password-login class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform uppercase tracking-widest text-xs">
+                                Entrar com senha
+                            </button>
+                            <button type="button" onclick="handlePasswordSignUp(this)" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Criar conta com senha</button>
+                        </div>
                         <p data-auth-status class="hidden text-center text-sm font-medium text-[#7f5353]" role="status" aria-live="polite"></p>
                     </form>
                     <form onsubmit="event.preventDefault(); handleLogin();" id="login-form-step2" class="flex flex-col gap-6 hidden">
@@ -302,9 +323,27 @@
 
                 <section class="flex flex-col gap-8 bg-[#f7f3f2] p-8 rounded-xl shadow-sm">
                     <div id="admin-auth-debug-panel" class="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
-                    <form onsubmit="event.preventDefault(); handleGoogleLogin('admin', this.querySelector('button[type=submit]'));" class="flex flex-col gap-6">
-                        <button type="submit" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
+                    <form onsubmit="event.preventDefault(); handleAdminPasswordLogin(this.querySelector('[data-admin-password-login]'));" class="flex flex-col gap-5">
+                        <button type="button" onclick="handleGoogleLogin('admin', this)" class="mt-4 w-full py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">
                             Entrar com Gmail
+                        </button>
+                        <div class="flex items-center gap-3">
+                            <span class="h-px flex-1 bg-[#d4c4b7]"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-stone-400">ou</span>
+                            <span class="h-px flex-1 bg-[#d4c4b7]"></span>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">E-mail</label>
+                                <input id="admin-auth-email" type="email" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" autocomplete="username" placeholder="admin@exemplo.com"/>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase tracking-widest text-[#82756a] mb-1 ml-1">Senha</label>
+                                <input id="admin-auth-password" type="password" class="w-full bg-transparent border-b-2 border-[#d4c4b7] focus:border-[#7f5353] py-2 px-1 text-[#1c1b1b]" autocomplete="current-password" placeholder="Sua senha"/>
+                            </div>
+                        </div>
+                        <button type="submit" data-admin-password-login class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform uppercase tracking-widest text-xs">
+                            Entrar com senha
                         </button>
                         <p data-auth-status class="hidden text-center text-sm font-medium text-[#7f5353]" role="status" aria-live="polite"></p>
                     </form>
@@ -627,6 +666,11 @@
                 <div>
                     <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nome</label>
                     <input id="client-profile-name" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="Seu nome completo"/>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">E-mail</label>
+                    <input id="client-profile-email" type="email" inputmode="email" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="email@exemplo.com"/>
                 </div>
 
                 <div>
@@ -1128,11 +1172,11 @@
         </div>
     </div>
 
-    <script src="supabase-service.js?v=20260623-card-admin-1"></script>
+    <script src="supabase-service.js?v=20260626-password-login-1"></script>
     <script src="booking-flow.js?v=20260625-full-payment-1"></script>
     <script src="booking-schedule.js"></script>
     <script src="booking-payment.js?v=20260625-full-payment-1"></script>
     <script src="booking-confirmation.js?v=20260625-full-payment-1"></script>
-    <script src="app.js?v=20260625-payment-label-1"></script>
+    <script src="app.js?v=20260626-password-login-1"></script>
 </body>
 </html>

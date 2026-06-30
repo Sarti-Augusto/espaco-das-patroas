@@ -287,6 +287,7 @@
                             <button type="submit" data-password-login class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform uppercase tracking-widest text-xs">
                                 Entrar com senha
                             </button>
+                            <button type="button" onclick="handlePasswordReset(this)" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Esqueci ou quero definir minha senha</button>
                             <button type="button" onclick="handlePasswordSignUp(this)" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Criar conta com senha</button>
                         </div>
                         <p data-auth-status class="hidden text-center text-sm font-medium text-[#7f5353]" role="status" aria-live="polite"></p>
@@ -345,6 +346,7 @@
                         <button type="submit" data-admin-password-login class="w-full py-3 bg-white text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform uppercase tracking-widest text-xs">
                             Entrar com senha
                         </button>
+                        <button type="button" onclick="handlePasswordReset(this, 'admin')" class="text-sm text-[#7f5353] underline active:scale-95 transition-transform">Esqueci ou quero definir minha senha</button>
                         <p data-auth-status class="hidden text-center text-sm font-medium text-[#7f5353]" role="status" aria-live="polite"></p>
                     </form>
                 </section>
@@ -685,6 +687,19 @@
                     <button onclick="confirmLogout()" class="w-full py-3 bg-[#f7f3f2] text-[#7f5353] font-bold rounded-xl active:scale-95 transition-transform">Sair da conta</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="password-reset-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
+        <div class="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+            <h3 id="password-reset-title" class="font-headline font-bold text-xl text-[#1c1b1b]">Definir nova senha</h3>
+            <p class="text-sm text-stone-500 mt-1">Digite uma nova senha para continuar acessando sua conta.</p>
+            <div class="mt-5">
+                <label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Nova senha</label>
+                <input id="password-reset-new-password" type="password" autocomplete="new-password" class="w-full bg-[#f7f3f2] border border-transparent rounded-xl px-4 py-3 text-[#1c1b1b] focus:border-[#7f5353] outline-none" placeholder="Minimo 6 caracteres"/>
+            </div>
+            <p id="password-reset-status" class="hidden mt-4 rounded-xl px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+            <button onclick="updateRecoveredPassword(this)" class="w-full mt-5 py-4 bg-gradient-to-br from-[#7f5353] to-[#d59f9f] text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest text-sm">Salvar nova senha</button>
         </div>
     </div>
 
@@ -1177,6 +1192,6 @@
     <script src="booking-schedule.js"></script>
     <script src="booking-payment.js?v=20260625-full-payment-1"></script>
     <script src="booking-confirmation.js?v=20260625-full-payment-1"></script>
-    <script src="app.js?v=20260626-password-login-1"></script>
+    <script src="app.js?v=20260630-login-fixes-2"></script>
 </body>
 </html>

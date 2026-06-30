@@ -329,6 +329,14 @@ function getRedirectUrl(role) {
     return url.toString();
 }
 
+function getPasswordRecoveryRedirectUrl(role) {
+    const redirectUrl = getRedirectUrl(role);
+    if (!redirectUrl) return undefined;
+    const url = new URL(redirectUrl);
+    url.searchParams.set('passwordRecovery', '1');
+    return url.toString();
+}
+
 function shouldUseLocalAuthRedirect() {
     const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
     const params = new URLSearchParams(window.location.search);
@@ -357,6 +365,10 @@ function attachAuthListener() {
     authListenerAttached = true;
 
     window.supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' && session?.user) {
+            showPasswordResetModal();
+            return;
+        }
         if (event !== 'SIGNED_IN' || !session?.user) return;
 
         try {
@@ -386,6 +398,7 @@ function hasAuthRedirectPayload() {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     return Boolean(
         query.get('loginRole') ||
+        query.get('passwordRecovery') ||
         query.get('code') ||
         query.get('error') ||
         hash.get('access_token') ||
@@ -457,6 +470,7 @@ function cleanAuthRedirectUrl() {
     ['loginRole', 'devAuth', 'code', 'error', 'error_code', 'error_description'].forEach(param => {
         url.searchParams.delete(param);
     });
+    url.searchParams.delete('passwordRecovery');
     const safeHash = url.hash && !url.hash.includes('access_token') ? url.hash : '';
     window.history.replaceState({}, document.title, `${url.pathname}${url.search}${safeHash}`);
 }
@@ -516,6 +530,12 @@ async function processInitialAuth() {
             showAuthError(profileError.message || 'Login realizado, mas nao foi possivel vincular seu perfil.');
             return false;
         }
+    }
+
+    if (new URLSearchParams(window.location.search).get('passwordRecovery') === '1' && data?.session?.user) {
+        showDefaultLoginPage();
+        showPasswordResetModal();
+        return true;
     }
 
     if ((roleFromUrl || window.location.hash.includes('access_token')) && !data?.session?.user) {
@@ -654,6 +674,83 @@ async function handlePasswordSignUp(button = null) {
         console.error('Erro ao criar conta por senha:', error);
         setAuthStatus(button, error.message || 'Nao foi possivel criar a conta.');
         showToast(error.message || 'Nao foi possivel criar a conta.');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function handlePasswordReset(button = null, role = 'client') {
+    const identifierInput = document.getElementById(role === 'admin' ? 'admin-auth-email' : 'input-auth-identifier');
+    const identifier = identifierInput?.value.trim() || '';
+
+    setFieldError(identifierInput?.id, !identifier);
+    if (!identifier) {
+        setAuthStatus(button, 'Informe seu e-mail ou telefone para definir a senha.');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true, 'Enviando...');
+        setAuthStatus(button, 'Preparando recuperacao de senha...');
+        const email = await resolveAuthEmail(identifier);
+        if (!email) throw new Error('Informe o e-mail cadastrado para recuperar a senha.');
+
+        const { error } = await withTimeout(window.supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: getPasswordRecoveryRedirectUrl(role === 'admin' ? 'admin' : 'client')
+        }), 12000);
+        if (error) throw error;
+
+        setAuthStatus(button, 'Enviamos um link para definir sua senha. Verifique seu e-mail.');
+        showToast('Link de senha enviado para o e-mail cadastrado.');
+    } catch (error) {
+        console.error('Erro ao solicitar recuperacao de senha:', error);
+        setAuthStatus(button, error.message || 'Nao foi possivel enviar o link de senha.');
+        showToast(error.message || 'Nao foi possivel enviar o link de senha.');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+function showPasswordResetModal() {
+    const modal = document.getElementById('password-reset-modal');
+    const input = document.getElementById('password-reset-new-password');
+    modal?.classList.remove('hidden');
+    modal?.classList.add('flex');
+    setInlineStatus('password-reset-status', '');
+    setFieldError('password-reset-new-password', false);
+    if (input) input.value = '';
+    input?.focus();
+}
+
+function closePasswordResetModal() {
+    const modal = document.getElementById('password-reset-modal');
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+}
+
+async function updateRecoveredPassword(button = null) {
+    const input = document.getElementById('password-reset-new-password');
+    const password = input?.value || '';
+    setFieldError('password-reset-new-password', password.length < 6);
+
+    if (password.length < 6) {
+        setInlineStatus('password-reset-status', 'A senha precisa ter pelo menos 6 caracteres.', 'error');
+        return;
+    }
+
+    try {
+        setButtonLoading(button, true, 'Salvando...');
+        setInlineStatus('password-reset-status', 'Salvando nova senha...', 'info');
+        const { error } = await withTimeout(window.supabase.auth.updateUser({ password }), 12000);
+        if (error) throw error;
+
+        closePasswordResetModal();
+        await completePasswordAuth(getPendingLoginRole());
+        cleanAuthRedirectUrl();
+        showToast('Senha atualizada.');
+    } catch (error) {
+        console.error('Erro ao atualizar senha:', error);
+        setInlineStatus('password-reset-status', error.message || 'Nao foi possivel atualizar a senha.', 'error');
     } finally {
         setButtonLoading(button, false);
     }
@@ -1518,15 +1615,24 @@ async function saveClientProfile(button = null) {
             profileImageUrl = await uploadImageFile(selectedClientProfileImageFile, 'avatars', db.currentUser.id);
         }
 
-        if (email !== String(db.currentUser.email || '').toLowerCase()) {
+        let profileEmail = String(db.currentUser.email || '').toLowerCase();
+        let emailChangePending = false;
+        if (email !== profileEmail) {
             setInlineStatus('client-profile-status', 'Atualizando e-mail...', 'info');
-            const { error: authEmailError } = await window.supabase.auth.updateUser({ email });
+            const { data: authEmailData, error: authEmailError } = await window.supabase.auth.updateUser({ email });
             if (authEmailError) throw authEmailError;
+
+            const confirmedAuthEmail = String(authEmailData?.user?.email || '').toLowerCase();
+            if (confirmedAuthEmail === email) {
+                profileEmail = email;
+            } else {
+                emailChangePending = true;
+            }
         }
 
         const user = await supabaseUpdateUser(db.currentUser.id, {
             name,
-            email,
+            email: profileEmail,
             phone,
             profile_image_url: profileImageUrl
         });
@@ -1535,7 +1641,7 @@ async function saveClientProfile(button = null) {
         saveSession();
         updateClientProfileUi();
         closeClientProfileModal();
-        showToast('Perfil atualizado!');
+        showToast(emailChangePending ? 'Perfil atualizado. Confirme o novo e-mail para concluir a troca.' : 'Perfil atualizado!');
     } catch (error) {
         console.error('Erro ao atualizar perfil:', error);
         setInlineStatus('client-profile-status', error.message || 'Nao foi possivel salvar o perfil agora.', 'error');
@@ -1549,6 +1655,11 @@ window.openClientProfileModal = openClientProfileModal;
 window.closeClientProfileModal = closeClientProfileModal;
 window.previewClientProfileAvatar = previewClientProfileAvatar;
 window.saveClientProfile = saveClientProfile;
+window.handlePasswordLogin = handlePasswordLogin;
+window.handlePasswordSignUp = handlePasswordSignUp;
+window.handlePasswordReset = handlePasswordReset;
+window.handleAdminPasswordLogin = handleAdminPasswordLogin;
+window.updateRecoveredPassword = updateRecoveredPassword;
 
 async function goToLogin() {
     await clearSession();
